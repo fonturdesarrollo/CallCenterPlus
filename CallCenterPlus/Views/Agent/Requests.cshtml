@@ -1,0 +1,71 @@
+@model List<CallCenterPlus.Models.PendingRequestRow>
+@{
+    ViewData["Title"] = "Solicitudes";
+}
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Solicitudes en cola</h2>
+            <p>Tickets a la espera de ser tomados por un agente</p>
+        </div>
+    </div>
+
+    @if (ViewBag.LoadFailed == true)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>No pudimos cargar algunos datos (tickets o catálogo de categorías). Intenta de nuevo en unos minutos.</span>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-inbox"></i>
+            <p>No hay solicitudes en cola por el momento.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Tipo de solicitud</th>
+                        <th>Categoría</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in Model)
+                    {
+                        <tr>
+                            <td>
+                                <div class="ag-table-user">
+                                    <div class="ag-table-avatar">@request.Initials</div>
+                                    <div>
+                                        <div class="ag-table-user-name">@request.EmployeeName</div>
+                                        <div class="ag-table-user-dept">@request.Department</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@request.RequestTypeName</td>
+                            <td>@request.CategoryName</td>
+                            <td>@request.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
+                            <td><span class="ag-badge ag-badge-info">@request.Status</span></td>
+                            <td class="text-end">
+                                <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" disabled title="Disponible próximamente">
+                                    Tomar ticket
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

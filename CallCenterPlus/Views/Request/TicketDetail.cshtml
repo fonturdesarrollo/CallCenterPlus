@@ -1,0 +1,90 @@
+@model CallCenterPlus.Models.FakeTicket
+@{
+    ViewData["Title"] = "Detalle de solicitud " + Model.Number;
+
+    string BadgeClass(string status) => status switch
+    {
+        "Abierto" => "cc-badge-abierto",
+        "En Proceso" => "cc-badge-enproceso",
+        "Resuelto" => "cc-badge-resuelto",
+        "Cerrado" => "cc-badge-cerrado",
+        _ => "cc-badge-abierto",
+    };
+}
+
+<div class="cc-wrap">
+    <div class="cc-card">
+        <a asp-controller="Request" asp-action="CheckStatus" class="cc-btn cc-btn-outline" style="padding:10px 16px; margin-bottom:22px;">
+            <i class="bi bi-arrow-left"></i> Mis solicitudes
+        </a>
+
+        <div class="cc-detail-header">
+            <div>
+                <div class="cc-ticket-number">@Model.Number</div>
+                <h1 class="cc-page-title" style="text-align:left; margin-bottom:0;">
+                    <i class="bi @Model.RequestTypeIcon" style="color:var(--cc-primary); margin-right:8px;"></i>@Model.RequestTypeName
+                </h1>
+            </div>
+            <span class="cc-badge @BadgeClass(Model.Status)" style="font-size:.8rem; padding:8px 16px;">
+                <span class="cc-badge-dot"></span>@Model.Status
+            </span>
+        </div>
+
+        <p style="color:var(--cc-text-muted); font-size:.92rem; line-height:1.6;">@Model.Description</p>
+
+        <div class="cc-detail-grid">
+            <div class="cc-detail-stat">
+                <div class="cc-summary-label">Técnico asignado</div>
+                <div class="cc-summary-value">@(Model.AssignedTechnician ?? "Por asignar")</div>
+            </div>
+            <div class="cc-detail-stat">
+                <div class="cc-summary-label">Minutos invertidos</div>
+                <div class="cc-summary-value">@(Model.MinutesSpent.HasValue ? $"{Model.MinutesSpent} min" : "—")</div>
+            </div>
+            <div class="cc-detail-stat">
+                <div class="cc-summary-label">Última actualización</div>
+                <div class="cc-summary-value" style="font-size:.85rem;">@Model.UpdatedAt.ToString("dd/MM/yyyy hh:mm tt")</div>
+            </div>
+        </div>
+
+        <h6 style="font-weight:700; margin:28px 0 16px; font-size:.9rem;">
+            <i class="bi bi-clock-history"></i> Seguimiento
+        </h6>
+
+        <div class="cc-timeline">
+            <div class="cc-timeline-item is-user">
+                <div class="cc-timeline-dot"><i class="bi bi-flag"></i></div>
+                <div class="cc-timeline-content">
+                    <span class="cc-timeline-author">Solicitud creada</span>
+                    <span class="cc-timeline-date">@Model.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</span>
+                    <p class="cc-timeline-text">@Model.Description</p>
+                </div>
+            </div>
+
+            @if (!Model.Comments.Any())
+            {
+                <div class="cc-timeline-item">
+                    <div class="cc-timeline-dot"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="cc-timeline-content">
+                        <span class="cc-timeline-author">En espera de asignación</span>
+                        <p class="cc-timeline-text" style="color:var(--cc-text-muted);">Un técnico tomará tu caso pronto.</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                foreach (var comment in Model.Comments.OrderBy(c => c.Date))
+                {
+                    <div class="cc-timeline-item @(comment.IsTechnician ? "" : "is-user")">
+                        <div class="cc-timeline-dot"><i class="bi @(comment.IsTechnician ? "bi-person-workspace" : "bi-person")"></i></div>
+                        <div class="cc-timeline-content">
+                            <span class="cc-timeline-author">@comment.Author</span>
+                            <span class="cc-timeline-date">@comment.Date.ToString("dd/MM/yyyy hh:mm tt")</span>
+                            <p class="cc-timeline-text">@comment.Text</p>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>

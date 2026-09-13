@@ -1,0 +1,36 @@
+@model int
+@{
+    var steps = new (string Icon, string Label)[]
+    {
+        ("bi-house", "Inicio"),
+        ("bi-card-list", "Solicitud"),
+        ("bi-check2-square", "Resumen"),
+    };
+    var total = steps.Length;
+    var progress = total > 1 ? (Model - 1) * 1.0 / (total - 1) : 0;
+    var lineWidth = (70.0 * progress).ToString(System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="cc-stepper">
+    <div class="cc-stepper-line"></div>
+    <div class="cc-stepper-line-fill" style="width: @(lineWidth)%"></div>
+    <div class="cc-step-list">
+        @for (int i = 0; i < total; i++)
+        {
+            var stepNumber = i + 1;
+            var state = stepNumber < Model ? "is-done" : (stepNumber == Model ? "is-active" : "");
+            <div class="cc-step @state">
+                <div class="cc-step-circle">
+                    @if (stepNumber < Model)
+                    {
+                        <i class="bi bi-check-lg"></i>
+                    }
+                    else
+                    {
+                        <i class="bi @steps[i].Icon"></i>
+                    }
+                </div>
+                <div class="cc-step-label">@steps[i].Label</div>
+            </div>
+        }
+    </div>
+</div>

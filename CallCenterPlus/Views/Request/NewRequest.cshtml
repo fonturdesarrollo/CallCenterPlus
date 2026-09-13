@@ -1,0 +1,117 @@
+@model CallCenterPlus.Models.NewRequestViewModel
+@{
+    ViewData["Title"] = "Nueva solicitud";
+    var groups = Model.AvailableServiceAreas
+        .GroupBy(s => string.IsNullOrWhiteSpace(s.ServiceAreaName) ? "Otros" : s.ServiceAreaName)
+        .OrderBy(g => string.Equals(g.Key, "Otro", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+        .ToList();
+}
+
+<div class="cc-wrap">
+    <partial name="_Stepper" model="2" />
+
+    <div class="cc-card">
+        <h1 class="cc-page-title">¿Con qué necesitas ayuda?</h1>
+        <p class="cc-page-subtitle">Selecciona el tipo de solicitud que mejor describa tu caso.</p>
+
+        @if (Model.ServiceAreasLoadFailed)
+        {
+            <div class="cc-alert-note" style="background:var(--cc-warning-light); color:#a5680a;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>No pudimos cargar el catálogo de tipos de solicitud. Puedes seguir con la opción "Otro" o intentar de nuevo más tarde.</span>
+            </div>
+        }
+
+        <form asp-controller="Request" asp-action="NewRequest" method="post" id="requestForm" novalidate>
+            @Html.AntiForgeryToken()
+
+            @foreach (var group in groups)
+            {
+                <h6 class="cc-type-group-title">@group.Key</h6>
+                <div class="cc-type-grid">
+                    @foreach (var detail in group)
+                    {
+                        var detailId = detail.ServiceAreaDetailId.ToString();
+                        var isChecked = detailId == Model.RequestTypeId;
+                        var isOtherDetail = string.Equals(detail.ServiceAreaDetailName?.Trim(), "Otro", StringComparison.OrdinalIgnoreCase);
+                        var icon = isOtherDetail ? "bi-three-dots" : "bi-card-list";
+                        <label class="cc-type-card@(isChecked ? " is-selected" : "")" data-is-other="@isOtherDetail.ToString().ToLower()">
+                            <input type="radio" name="RequestTypeId" value="@detailId" @(isChecked ? "checked" : "") />
+                            <span class="cc-type-icon"><i class="bi @icon"></i></span>
+                            <span class="cc-type-body">
+                                <h6>@detail.ServiceAreaDetailName</h6>
+                                @if (isOtherDetail)
+                                {
+                                    <p>Mi solicitud no está en la lista anterior</p>
+                                }
+                            </span>
+                            <span class="cc-type-check"></span>
+                        </label>
+                    }
+                </div>
+            }
+            <span asp-validation-for="RequestTypeId" class="cc-error"></span>
+
+            <div class="cc-field" style="margin-top:26px;">
+                <label class="cc-label" id="descriptionLabel" for="Description">Detalles adicionales <span class="text-muted fw-normal">(opcional)</span></label>
+                <textarea class="cc-textarea" id="Description" name="Description" maxlength="600"
+                          placeholder="Agrega información que ayude a resolver tu solicitud más rápido...">@Model.Description</textarea>
+                <span asp-validation-for="Description" class="cc-error"></span>
+            </div>
+
+            <div class="cc-actions">
+                <a class="cc-btn cc-btn-outline" asp-controller="Request" asp-action="Start">
+                    <i class="bi bi-arrow-left"></i> Atrás
+                </a>
+                <button type="submit" class="cc-btn cc-btn-primary" id="nextButton">
+                    Siguiente <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var cards = document.querySelectorAll('.cc-type-card');
+            var label = document.getElementById('descriptionLabel');
+            var textarea = document.getElementById('Description');
+            var nextButton = document.getElementById('nextButton');
+
+            function updateDescriptionUI() {
+                var selected = document.querySelector('.cc-type-card input[type=radio]:checked');
+                var isOther = selected && selected.closest('.cc-type-card').dataset.isOther === 'true';
+
+                if (isOther) {
+                    label.innerHTML = 'Describe tu solicitud <span style="color:#d9364f">*</span>';
+                    textarea.placeholder = 'Cuéntanos en detalle qué necesitas...';
+                } else {
+                    label.innerHTML = 'Detalles adicionales <span class="text-muted fw-normal">(opcional)</span>';
+                    textarea.placeholder = 'Agrega información que ayude a resolver tu solicitud más rápido...';
+                }
+            }
+
+            function updateNextButton() {
+                var selected = document.querySelector('.cc-type-card input[type=radio]:checked');
+                var isOther = selected && selected.closest('.cc-type-card').dataset.isOther === 'true';
+                var isValid = !!selected && (!isOther || textarea.value.trim().length >= 10);
+                nextButton.disabled = !isValid;
+            }
+
+            cards.forEach(function (card) {
+                card.addEventListener('click', function () {
+                    cards.forEach(function (c) { c.classList.remove('is-selected'); });
+                    card.classList.add('is-selected');
+                    updateDescriptionUI();
+                    updateNextButton();
+                });
+            });
+
+            textarea.addEventListener('input', updateNextButton);
+
+            updateDescriptionUI();
+            updateNextButton();
+        })();
+    </script>
+}

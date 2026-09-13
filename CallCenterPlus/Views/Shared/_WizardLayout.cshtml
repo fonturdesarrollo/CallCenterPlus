@@ -1,0 +1,51 @@
+@{
+    var sessionEmployee = Context.Session.GetObject<Employee>("CurrentEmployee");
+    var initials = string.IsNullOrWhiteSpace(sessionEmployee?.EmployeeName)
+        ? "?"
+        : string.Concat(sessionEmployee.EmployeeName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2).Select(p => char.ToUpper(p[0])));
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · CallCenterPlus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="~/css/wizard.css" asp-append-version="true" />
+</head>
+<body class="cc-body">
+    <header class="cc-topbar">
+        <a class="cc-brand" href="@(sessionEmployee is null ? Url.Action("Login", "Account") : Url.Action("Start", "Request"))">
+            <span class="cc-brand-icon"><i class="bi bi-headset"></i></span>
+            <span class="cc-brand-text">
+                <span class="cc-brand-title d-block">CallCenterPlus</span>
+                <span class="cc-brand-subtitle d-block">Gerencia de Tecnología · Mesa de Ayuda</span>
+            </span>
+        </a>
+
+        @if (sessionEmployee is not null)
+        {
+            <div class="cc-user-chip">
+                <div class="cc-user-avatar">@initials</div>
+                <div class="cc-user-info d-none d-sm-block">
+                    <div class="cc-user-name">@sessionEmployee.EmployeeName</div>
+                    <div class="cc-user-dept">@sessionEmployee.JobTitle</div>
+                </div>
+                <a class="cc-logout-btn" asp-controller="Account" asp-action="Logout" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span class="d-none d-md-inline">Salir</span>
+                </a>
+            </div>
+        }
+    </header>
+
+    <main>
+        @RenderBody()
+    </main>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

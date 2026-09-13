@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Solicitud enviada";
+}
+
+<div class="cc-wrap">
+    <div class="cc-card" style="text-align:center;">
+        <div class="cc-confirm-icon">
+            <i class="bi bi-check-lg"></i>
+        </div>
+        <h1 class="cc-page-title">¡Solicitud enviada con éxito!</h1>
+        <p class="cc-page-subtitle" style="margin-bottom:6px;">Tu número de ticket es:</p>
+        <div class="cc-ticket-badge">
+            <i class="bi bi-ticket-perforated"></i> @ViewBag.TicketNumber
+        </div>
+        <p class="cc-page-subtitle" style="margin-top:14px;">
+            Te notificaremos por correo cuando un técnico tome tu caso. También puedes consultar el estatus en cualquier momento.
+        </p>
+
+        <div class="cc-actions" style="justify-content:center;">
+            <a class="cc-btn cc-btn-outline" asp-controller="Request" asp-action="Start">
+                <i class="bi bi-house"></i> Ir al inicio
+            </a>
+            <a class="cc-btn cc-btn-primary" style="margin-left:0;" asp-controller="Request" asp-action="CheckStatus">
+                Ver mis solicitudes <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+</div>

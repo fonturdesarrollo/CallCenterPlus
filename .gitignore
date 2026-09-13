@@ -1,0 +1,36 @@
+## .NET / Visual Studio build output
+bin/
+obj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio user-specific files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / VS Code
+.idea/
+*.DotSettings.user
+.vscode/*
+!.vscode/extensions.json
+
+## Test results
+TestResults/
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+## App secrets / machine-specific config (see appsettings.example.json)
+CallCenterPlus/appsettings.json
+CallCenterPlus/appsettings.Development.json

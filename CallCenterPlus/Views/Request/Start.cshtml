@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Inicio";
+}
+
+<div class="cc-wrap">
+    <partial name="_Stepper" model="1" />
+
+    <div class="cc-card">
+        <h1 class="cc-page-title" style="margin-bottom:4px;">Hola, @ViewBag.CurrentEmployee.EmployeeName 👋</h1>
+        <p class="cc-employee-meta">
+            @ViewBag.CurrentEmployee.ManagementName<br />
+            @ViewBag.CurrentEmployee.ManagementDivisionName<br />
+            @ViewBag.CurrentEmployee.StateName
+        </p>
+        <p class="cc-page-subtitle">¿Qué deseas hacer hoy?</p>
+
+        <div class="cc-menu-grid">
+            <a class="cc-menu-card" asp-controller="Request" asp-action="NewRequest">
+                <div class="cc-menu-icon"><i class="bi bi-plus-circle"></i></div>
+                <h5>Generar solicitud</h5>
+                <p>Crea un nuevo ticket de soporte técnico</p>
+            </a>
+            <a class="cc-menu-card" asp-controller="Request" asp-action="CheckStatus">
+                <div class="cc-menu-icon"><i class="bi bi-search"></i></div>
+                <h5>Consultar estatus de solicitud</h5>
+                <p>Revisa el avance de tus tickets anteriores</p>
+            </a>
+        </div>
+    </div>
+</div>

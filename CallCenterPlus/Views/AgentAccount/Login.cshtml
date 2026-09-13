@@ -1,0 +1,44 @@
+@model CallCenterPlus.Models.AgentLoginViewModel
+@{
+    ViewData["Title"] = "Ingresar";
+    ViewData["AgentAuthPage"] = true;
+}
+
+<div class="ag-auth-page">
+    <div class="ag-auth-logo">
+        <span class="ag-brand-icon"><i class="bi bi-headset"></i></span>
+        <span>CallCenter<strong>Plus</strong></span>
+    </div>
+
+    <div class="ag-auth-card">
+        <h1>Panel de Soporte Técnico</h1>
+        <p>Ingresa con tu usuario para gestionar las solicitudes de los empleados.</p>
+
+        <div asp-validation-summary="ModelOnly" class="ag-error" style="margin-bottom:14px;"></div>
+
+        <form asp-controller="AgentAccount" asp-action="Login" method="post" novalidate>
+            @Html.AntiForgeryToken()
+
+            <div class="ag-field">
+                <label asp-for="Username">Usuario</label>
+                <input asp-for="Username" class="ag-input" placeholder="tu.usuario" autocomplete="off" autofocus />
+                <span asp-validation-for="Username" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field">
+                <label asp-for="Password">Contraseña</label>
+                <input asp-for="Password" type="password" class="ag-input" placeholder="••••••••" autocomplete="off" />
+                <span asp-validation-for="Password" class="ag-error"></span>
+            </div>
+
+            <button type="submit" class="ag-btn ag-btn-primary ag-btn-full">
+                Iniciar sesión
+            </button>
+        </form>
+
+        <div class="ag-auth-note">
+            <i class="bi bi-info-circle"></i>
+            Acceso temporal sin seguridad real: cualquier usuario y contraseña funcionan mientras se implementa la autenticación definitiva.
+        </div>
+    </div>
+</div>
