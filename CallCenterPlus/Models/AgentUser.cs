@@ -1,11 +1,13 @@
 namespace CallCenterPlus.Models;
 
 /// <summary>
-/// Fake, session-only identity for the call center agent panel. Replace with
-/// real authentication (SecurityUser) once security is implemented.
+/// Session identity for the call center agent panel, populated from a real
+/// SecurityUser after a successful login (see ISecurity.GetValidUser).
 /// </summary>
 public class AgentUser
 {
+    public int SecurityUserId { get; set; }
+    public int SecurityGroupId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
 

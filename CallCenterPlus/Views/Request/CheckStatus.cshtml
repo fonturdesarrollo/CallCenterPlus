@@ -1,18 +1,19 @@
-@model List<CallCenterPlus.Models.FakeTicket>
+@model List<CallCenterPlus.Models.MyRequestRow>
 @{
     ViewData["Title"] = "Consultar estatus";
 
-    string BadgeClass(string status) => status switch
+    string BadgeClass(int statusId) => statusId switch
     {
-        "Abierto" => "cc-badge-abierto",
-        "En Proceso" => "cc-badge-enproceso",
-        "Resuelto" => "cc-badge-resuelto",
-        "Cerrado" => "cc-badge-cerrado",
+        1 => "cc-badge-abierto",
+        2 => "cc-badge-abierto",
+        3 => "cc-badge-enproceso",
+        4 => "cc-badge-resuelto",
+        5 => "cc-badge-cerrado",
         _ => "cc-badge-abierto",
     };
 }
 
-<div class="cc-wrap">
+<div class="cc-wrap cc-wrap-wide">
     <div class="cc-card">
         <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
             <a asp-controller="Request" asp-action="Start" class="cc-btn cc-btn-outline" style="padding:10px 16px;">
@@ -23,6 +24,14 @@
                 <p class="cc-page-subtitle" style="text-align:left; margin-bottom:0;">Estatus de los tickets asociados a tu cédula @ViewBag.CurrentEmployee.EmployeeIdNumber</p>
             </div>
         </div>
+
+        @if (ViewBag.LoadFailed == true)
+        {
+            <div class="cc-alert-note" style="background:var(--cc-warning-light); color:#a5680a; margin-top:18px;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>No pudimos cargar algunos datos. Es posible que la información mostrada esté incompleta.</span>
+            </div>
+        }
 
         <div style="margin-top:26px;">
             @if (!Model.Any())
@@ -37,30 +46,40 @@
             }
             else
             {
-                foreach (var ticket in Model)
-                {
-                    <a class="cc-ticket-card" asp-controller="Request" asp-action="TicketDetail" asp-route-number="@ticket.Number">
-                        <div class="cc-ticket-top">
-                            <div>
-                                <div class="cc-ticket-number">@ticket.Number</div>
-                                <div class="cc-ticket-type"><i class="bi @ticket.RequestTypeIcon" style="color:var(--cc-primary); margin-right:6px;"></i>@ticket.RequestTypeName</div>
-                            </div>
-                            <span class="cc-badge @BadgeClass(ticket.Status)"><span class="cc-badge-dot"></span>@ticket.Status</span>
-                        </div>
-                        <p class="cc-ticket-desc">@ticket.Description</p>
-                        <div class="cc-ticket-meta">
-                            <span><i class="bi bi-calendar3"></i> @ticket.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</span>
-                            @if (!string.IsNullOrEmpty(ticket.AssignedTechnician))
+                <div class="cc-table-wrap">
+                    <table class="cc-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo de solicitud</th>
+                                <th>Comentarios</th>
+                                <th>Fecha</th>
+                                <th>Estatus</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in Model)
                             {
-                                <span><i class="bi bi-person-badge"></i> @ticket.AssignedTechnician</span>
+                                <tr>
+                                    <td>
+                                        <div class="cc-table-type">
+                                            <i class="bi @request.RequestTypeIcon"></i>
+                                            <span>@request.RequestTypeName</span>
+                                        </div>
+                                    </td>
+                                    <td class="cc-table-remarks" title="@request.TicketRemarks">@request.TicketRemarks</td>
+                                    <td>@request.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
+                                    <td><span class="cc-badge @BadgeClass(request.TicketStatusId)"><span class="cc-badge-dot"></span>@request.StatusName</span></td>
+                                    <td style="text-align:right;">
+                                        <a class="cc-btn cc-btn-outline cc-btn-sm" asp-controller="Request" asp-action="TicketDetail" asp-route-id="@request.TicketId">
+                                            <i class="bi bi-eye"></i> Ver movimientos
+                                        </a>
+                                    </td>
+                                </tr>
                             }
-                            @if (ticket.MinutesSpent.HasValue)
-                            {
-                                <span><i class="bi bi-stopwatch"></i> @ticket.MinutesSpent min. invertidos</span>
-                            }
-                        </div>
-                    </a>
-                }
+                        </tbody>
+                    </table>
+                </div>
             }
         </div>
     </div>

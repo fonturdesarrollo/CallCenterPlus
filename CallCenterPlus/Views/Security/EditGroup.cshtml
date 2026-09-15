@@ -1,0 +1,73 @@
+@model CallCenterPlus.Models.SecurityGroupModel
+@{
+    ViewData["Title"] = "Modificar grupo";
+}
+
+<div class="ag-card ag-card-narrow">
+    <div class="ag-card-header">
+        <div>
+            <h2>Modificar grupo</h2>
+            <p>Actualiza los datos de @Model.SecurityGroupName</p>
+        </div>
+    </div>
+
+    @if (ViewBag.SubmitError is not null)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>@ViewBag.SubmitError</span>
+        </div>
+    }
+
+    <form asp-controller="Security" asp-action="EditGroup" method="post" id="editGroupForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="SecurityGroupId" />
+        <div asp-validation-summary="ModelOnly" class="ag-error" style="margin-bottom:14px;"></div>
+
+        <div class="ag-form-grid">
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="SecurityGroupName">Nombre del grupo</label>
+                <input asp-for="SecurityGroupName" class="ag-input" placeholder="Ej: Agentes" autocomplete="off" required />
+                <span asp-validation-for="SecurityGroupName" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="SecurityGroupDescription">Descripción</label>
+                <textarea asp-for="SecurityGroupDescription" class="ag-input" placeholder="Describe el propósito de este grupo" required></textarea>
+                <span asp-validation-for="SecurityGroupDescription" class="ag-error"></span>
+            </div>
+        </div>
+
+        <div class="ag-form-actions">
+            <a class="ag-btn ag-btn-outline" asp-controller="Security" asp-action="Groups">Cancelar</a>
+            <button type="submit" class="ag-btn ag-btn-primary">
+                <i class="bi bi-check-lg"></i> Actualizar grupo
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('editGroupForm');
+            if (form && window.agLocalizeValidation) {
+                agLocalizeValidation(form);
+            }
+            if (form && window.agConfirm) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas guardar los cambios de este grupo?', function () {
+                        form.submit();
+                    }, { title: 'Actualizar grupo', acceptText: 'Guardar', cancelText: 'Cancelar' });
+                });
+            }
+        })();
+    </script>
+}

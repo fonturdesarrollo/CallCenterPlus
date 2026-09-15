@@ -1,3 +1,4 @@
+using CallCenterPlus.Core;
 using CallCenterPlus.Extensions;
 using CallCenterPlus.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,15 @@ namespace CallCenterPlus.Controllers;
 public class AgentAccountController : Controller
 {
     private const string SessionAgentKey = "CurrentAgent";
+
+    private readonly ISecurity _security;
+    private readonly ILogger<AgentAccountController> _logger;
+
+    public AgentAccountController(ISecurity security, ILogger<AgentAccountController> logger)
+    {
+        _security = security;
+        _logger = logger;
+    }
 
     [HttpGet]
     public IActionResult Login()
@@ -20,8 +30,6 @@ public class AgentAccountController : Controller
         return View(new AgentLoginViewModel());
     }
 
-    // TODO: replace with real authentication (SecurityUser) once security is implemented.
-    // For now any non-empty username/password combination is accepted.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult Login(AgentLoginViewModel model)
@@ -33,10 +41,30 @@ public class AgentAccountController : Controller
             return View(model);
         }
 
+        SecurityUserViewModel validUser;
+        try
+        {
+            validUser = _security.GetValidUser(model.Username.Trim(), model.Password);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al validar el usuario {UserName} (Security.GetValidUser)", model.Username);
+            ModelState.AddModelError(string.Empty, "Ocurrió un error al iniciar sesión. Intenta nuevamente en unos minutos.");
+            return View(model);
+        }
+
+        if (validUser.SecurityUserId <= 0)
+        {
+            ModelState.AddModelError(string.Empty, "Usuario o contraseña incorrectos.");
+            return View(model);
+        }
+
         HttpContext.Session.SetObject(SessionAgentKey, new AgentUser
         {
-            FullName = model.Username.Trim(),
-            Role = "Agente de Soporte",
+            SecurityUserId = validUser.SecurityUserId,
+            SecurityGroupId = validUser.SecurityGroupId,
+            FullName = validUser.FullName ?? model.Username.Trim(),
+            Role = validUser.SecurityGroupName ?? "Agente de Soporte",
         });
 
         return RedirectToAction("Requests", "Agent");

@@ -135,6 +135,10 @@ a { color: inherit; }
     max-width: 460px;
 }
 
+.cc-wrap-wide {
+    max-width: 980px;
+}
+
 .cc-card {
     background: var(--cc-card-bg);
     border-radius: 22px;
@@ -353,6 +357,8 @@ a { color: inherit; }
 .cc-btn-outline:hover { border-color: #cfcfd4; background: #fafafa; color: var(--cc-text); }
 
 .cc-btn-full { width: 100%; justify-content: center; }
+
+.cc-btn-sm { padding: 8px 18px; font-size: .8rem; }
 
 /* Menu (paso 1) */
 .cc-menu-grid {
@@ -613,6 +619,44 @@ a { color: inherit; }
 
 .cc-empty-state { text-align: center; padding: 50px 20px; color: var(--cc-text-muted); }
 .cc-empty-state i { font-size: 2.6rem; color: var(--cc-border); margin-bottom: 14px; display: block; }
+
+/* Ticket list (table) */
+.cc-table-wrap { overflow-x: auto; border-radius: 16px; border: 2px solid var(--cc-border); }
+
+.cc-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 640px; }
+
+.cc-table thead th {
+    text-align: left;
+    padding: 14px 18px;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--cc-text-muted);
+    background: var(--cc-bg);
+    border-bottom: 2px solid var(--cc-border);
+    white-space: nowrap;
+}
+
+.cc-table tbody td { padding: 16px 18px; border-bottom: 1px solid var(--cc-border); vertical-align: middle; }
+.cc-table tbody tr:last-child td { border-bottom: none; }
+.cc-table tbody tr { background: #fff; transition: background .15s ease; }
+.cc-table tbody tr:hover { background: var(--cc-primary-light); }
+
+.cc-table-type { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--cc-text); }
+.cc-table-type i { color: var(--cc-primary); font-size: 1.05rem; }
+
+.cc-table-remarks {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cc-text-muted);
+}
+
+@media (max-width: 700px) {
+    .cc-table-remarks { display: none; }
+}
 
 /* Detalle ticket */
 .cc-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }

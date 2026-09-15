@@ -1,13 +1,15 @@
-@model CallCenterPlus.Models.FakeTicket
+@model CallCenterPlus.Models.MyRequestDetailViewModel
 @{
-    ViewData["Title"] = "Detalle de solicitud " + Model.Number;
+    ViewData["Title"] = "Detalle de solicitud #" + Model.TicketId;
+    var ticketNumber = $"TCK-{Model.CreatedAt:yyyy}-{Model.TicketId:000000}";
 
-    string BadgeClass(string status) => status switch
+    string BadgeClass(int statusId) => statusId switch
     {
-        "Abierto" => "cc-badge-abierto",
-        "En Proceso" => "cc-badge-enproceso",
-        "Resuelto" => "cc-badge-resuelto",
-        "Cerrado" => "cc-badge-cerrado",
+        1 => "cc-badge-abierto",
+        2 => "cc-badge-abierto",
+        3 => "cc-badge-enproceso",
+        4 => "cc-badge-resuelto",
+        5 => "cc-badge-cerrado",
         _ => "cc-badge-abierto",
     };
 }
@@ -20,17 +22,17 @@
 
         <div class="cc-detail-header">
             <div>
-                <div class="cc-ticket-number">@Model.Number</div>
+                <div class="cc-ticket-number">@ticketNumber</div>
                 <h1 class="cc-page-title" style="text-align:left; margin-bottom:0;">
                     <i class="bi @Model.RequestTypeIcon" style="color:var(--cc-primary); margin-right:8px;"></i>@Model.RequestTypeName
                 </h1>
             </div>
-            <span class="cc-badge @BadgeClass(Model.Status)" style="font-size:.8rem; padding:8px 16px;">
-                <span class="cc-badge-dot"></span>@Model.Status
+            <span class="cc-badge @BadgeClass(Model.TicketStatusId)" style="font-size:.8rem; padding:8px 16px;">
+                <span class="cc-badge-dot"></span>@Model.StatusName
             </span>
         </div>
 
-        <p style="color:var(--cc-text-muted); font-size:.92rem; line-height:1.6;">@Model.Description</p>
+        <p style="color:var(--cc-text-muted); font-size:.92rem; line-height:1.6;">@(string.IsNullOrWhiteSpace(Model.Description) ? "Sin detalles adicionales." : Model.Description)</p>
 
         <div class="cc-detail-grid">
             <div class="cc-detail-stat">
@@ -57,11 +59,11 @@
                 <div class="cc-timeline-content">
                     <span class="cc-timeline-author">Solicitud creada</span>
                     <span class="cc-timeline-date">@Model.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</span>
-                    <p class="cc-timeline-text">@Model.Description</p>
+                    <p class="cc-timeline-text">@(string.IsNullOrWhiteSpace(Model.Description) ? "Sin detalles adicionales." : Model.Description)</p>
                 </div>
             </div>
 
-            @if (!Model.Comments.Any())
+            @if (!Model.Movements.Any())
             {
                 <div class="cc-timeline-item">
                     <div class="cc-timeline-dot"><i class="bi bi-hourglass-split"></i></div>
@@ -73,14 +75,14 @@
             }
             else
             {
-                foreach (var comment in Model.Comments.OrderBy(c => c.Date))
+                foreach (var movement in Model.Movements)
                 {
-                    <div class="cc-timeline-item @(comment.IsTechnician ? "" : "is-user")">
-                        <div class="cc-timeline-dot"><i class="bi @(comment.IsTechnician ? "bi-person-workspace" : "bi-person")"></i></div>
+                    <div class="cc-timeline-item">
+                        <div class="cc-timeline-dot"><i class="bi bi-person-workspace"></i></div>
                         <div class="cc-timeline-content">
-                            <span class="cc-timeline-author">@comment.Author</span>
-                            <span class="cc-timeline-date">@comment.Date.ToString("dd/MM/yyyy hh:mm tt")</span>
-                            <p class="cc-timeline-text">@comment.Text</p>
+                            <span class="cc-timeline-author">@(movement.FullName ?? "Técnico")</span>
+                            <span class="cc-timeline-date">@movement.TicketMovementDate.ToString("dd/MM/yyyy hh:mm tt")</span>
+                            <p class="cc-timeline-text">@(!string.IsNullOrWhiteSpace(movement.TicketDetailProcessDescrption) ? movement.TicketDetailProcessDescrption : movement.TicketDetailRemarksByTechnician)</p>
                         </div>
                     </div>
                 }

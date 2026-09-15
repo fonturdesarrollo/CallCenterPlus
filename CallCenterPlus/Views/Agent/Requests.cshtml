@@ -34,7 +34,7 @@
                     <tr>
                         <th>Empleado</th>
                         <th>Tipo de solicitud</th>
-                        <th>Categoría</th>
+                        <th>Comentarios</th>
                         <th>Fecha</th>
                         <th>Estado</th>
                         <th></th>
@@ -54,13 +54,13 @@
                                 </div>
                             </td>
                             <td>@request.RequestTypeName</td>
-                            <td>@request.CategoryName</td>
+                            <td class="ag-table-remarks" title="@request.TicketRemarks">@request.TicketRemarks</td>
                             <td>@request.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
                             <td><span class="ag-badge ag-badge-info">@request.Status</span></td>
                             <td class="text-end">
-                                <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" disabled title="Disponible próximamente">
+                                <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Agent" asp-action="TicketDetail" asp-route-id="@request.TicketId">
                                     Tomar ticket
-                                </button>
+                                </a>
                             </td>
                         </tr>
                     }

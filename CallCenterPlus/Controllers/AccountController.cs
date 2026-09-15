@@ -10,10 +10,12 @@ public class AccountController : Controller
     private const string SessionEmployeeKey = "CurrentEmployee";
 
     private readonly IEmployees _employees;
+    private readonly ILogger<AccountController> _logger;
 
-    public AccountController(IEmployees employees)
+    public AccountController(IEmployees employees, ILogger<AccountController> logger)
     {
         _employees = employees;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -49,8 +51,9 @@ public class AccountController : Controller
         {
             employee = _employees.GetByEmployeeIdNumber(employeeIdNumber);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error al validar la cédula {EmployeeIdNumber} (Employees.GetByEmployeeIdNumber)", employeeIdNumber);
             ModelState.AddModelError(string.Empty,
                 "Ocurrió un error al validar tu cédula. Intenta nuevamente en unos minutos.");
             return View(model);

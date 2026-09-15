@@ -1,0 +1,73 @@
+@model CallCenterPlus.Models.SecurityModuleModel
+@{
+    ViewData["Title"] = "Modificar módulo";
+}
+
+<div class="ag-card ag-card-narrow">
+    <div class="ag-card-header">
+        <div>
+            <h2>Modificar módulo</h2>
+            <p>Actualiza los datos de @Model.SecurityModuleName</p>
+        </div>
+    </div>
+
+    @if (ViewBag.SubmitError is not null)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>@ViewBag.SubmitError</span>
+        </div>
+    }
+
+    <form asp-controller="Security" asp-action="EditModule" method="post" id="editModuleForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="SecurityModuleId" />
+        <div asp-validation-summary="ModelOnly" class="ag-error" style="margin-bottom:14px;"></div>
+
+        <div class="ag-form-grid">
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="SecurityModuleName">Nombre del módulo</label>
+                <input asp-for="SecurityModuleName" class="ag-input" placeholder="Ej: Solicitudes" autocomplete="off" required />
+                <span asp-validation-for="SecurityModuleName" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="SecurityModuleDescription">Descripción</label>
+                <textarea asp-for="SecurityModuleDescription" class="ag-input" placeholder="Describe el propósito de este módulo" required></textarea>
+                <span asp-validation-for="SecurityModuleDescription" class="ag-error"></span>
+            </div>
+        </div>
+
+        <div class="ag-form-actions">
+            <a class="ag-btn ag-btn-outline" asp-controller="Security" asp-action="Modules">Cancelar</a>
+            <button type="submit" class="ag-btn ag-btn-primary">
+                <i class="bi bi-check-lg"></i> Actualizar módulo
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('editModuleForm');
+            if (form && window.agLocalizeValidation) {
+                agLocalizeValidation(form);
+            }
+            if (form && window.agConfirm) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas guardar los cambios de este módulo?', function () {
+                        form.submit();
+                    }, { title: 'Actualizar módulo', acceptText: 'Guardar', cancelText: 'Cancelar' });
+                });
+            }
+        })();
+    </script>
+}

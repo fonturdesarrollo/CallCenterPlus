@@ -1,0 +1,137 @@
+@model CallCenterPlus.Models.AddSecurityUserViewModel
+@{
+    ViewData["Title"] = "Modificar usuario";
+}
+
+<div class="ag-card ag-card-narrow">
+    <div class="ag-card-header">
+        <div>
+            <h2>Modificar usuario</h2>
+            <p>Actualiza los datos de @Model.User.FullName</p>
+        </div>
+    </div>
+
+    @if (ViewBag.SubmitError is not null)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>@ViewBag.SubmitError</span>
+        </div>
+    }
+
+    <form asp-controller="Security" asp-action="EditUser" method="post" id="editUserForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="User.SecurityUserId" />
+        <input type="hidden" asp-for="User.Password" />
+        <div asp-validation-summary="ModelOnly" class="ag-error" style="margin-bottom:14px;"></div>
+
+        <div class="ag-form-grid">
+            <div class="ag-field">
+                <label asp-for="User.SecurityUserDocumentIdNumber">Cédula</label>
+                <input asp-for="User.SecurityUserDocumentIdNumber" type="number" class="ag-input ag-input-no-spin" id="cedulaInput" placeholder="Ej: 12345678" autocomplete="off" required />
+                <span asp-validation-for="User.SecurityUserDocumentIdNumber" class="ag-error"></span>
+            </div>
+            <div class="ag-field">
+                <label asp-for="User.FullName">Nombre completo</label>
+                <input asp-for="User.FullName" class="ag-input" placeholder="Nombre y apellido" autocomplete="off" required />
+                <span asp-validation-for="User.FullName" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="User.StateId">Provincia</label>
+                <select asp-for="User.StateId" class="ag-input" required>
+                    <option value="">- Selecciona una provincia -</option>
+                    @foreach (var state in Model.AvailableStates)
+                    {
+                        <option value="@state.StateId">@state.StateName</option>
+                    }
+                </select>
+                <span asp-validation-for="User.StateId" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field">
+                <label asp-for="User.UserName">Usuario</label>
+                <input asp-for="User.UserName" class="ag-input" placeholder="usuario.login" autocomplete="off" required />
+                <span asp-validation-for="User.UserName" class="ag-error"></span>
+            </div>
+            <div class="ag-field">
+                <label asp-for="User.NewPassword">Nueva contraseña <span class="text-muted fw-normal">(opcional)</span></label>
+                <input asp-for="User.NewPassword" type="password" class="ag-input" placeholder="Dejar en blanco para no cambiarla" autocomplete="new-password" />
+                <span asp-validation-for="User.NewPassword" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field">
+                <label asp-for="User.SecurityGroupId">Grupo</label>
+                <select asp-for="User.SecurityGroupId" class="ag-input" required>
+                    <option value="">- Selecciona un grupo -</option>
+                    @foreach (var group in Model.AvailableGroups)
+                    {
+                        <option value="@group.SecurityGroupId">@group.SecurityGroupName</option>
+                    }
+                </select>
+                <span asp-validation-for="User.SecurityGroupId" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field">
+                <label asp-for="User.SecurityStatusId">Estatus</label>
+                <select asp-for="User.SecurityStatusId" class="ag-input" required>
+                    <option value="">- Selecciona un estatus -</option>
+                    @foreach (var status in Model.AvailableStatuses)
+                    {
+                        <option value="@status.SecurityStatusId">@status.SecurityStatusName</option>
+                    }
+                </select>
+                <span asp-validation-for="User.SecurityStatusId" class="ag-error"></span>
+            </div>
+        </div>
+
+        <div class="ag-form-actions">
+            <a class="ag-btn ag-btn-outline" asp-controller="Security" asp-action="Users">Cancelar</a>
+            <button type="submit" class="ag-btn ag-btn-primary">
+                <i class="bi bi-check-lg"></i> Actualizar usuario
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var cedulaInput = document.getElementById('cedulaInput');
+            if (cedulaInput) {
+                cedulaInput.addEventListener('input', function () {
+                    var digitsOnly = this.value.replace(/[^0-9]/g, '');
+                    if (digitsOnly !== this.value) {
+                        this.value = digitsOnly;
+                    }
+                });
+                cedulaInput.addEventListener('keydown', function (e) {
+                    var allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                    if (allowedKeys.indexOf(e.key) !== -1) return;
+                    if (!/^[0-9]$/.test(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+
+            var form = document.getElementById('editUserForm');
+            if (form && window.agLocalizeValidation) {
+                agLocalizeValidation(form);
+            }
+            if (form && window.agConfirm) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas guardar los cambios de este usuario?', function () {
+                        form.submit();
+                    }, { title: 'Actualizar usuario', acceptText: 'Guardar', cancelText: 'Cancelar' });
+                });
+            }
+        })();
+    </script>
+}

@@ -1,0 +1,216 @@
+@model CallCenterPlus.Models.AddGroupModuleViewModel
+@{
+    ViewData["Title"] = "Agregar módulo a grupo";
+}
+
+<div class="ag-card ag-card-narrow">
+    <div class="ag-card-header">
+        <div>
+            <h2>Agregar módulo a grupo</h2>
+            <p>Asigna un módulo y su tipo de acceso a un grupo de seguridad</p>
+        </div>
+    </div>
+
+    @if (ViewBag.SuccessMessage is not null)
+    {
+        <div class="ag-alert-success">
+            <i class="bi bi-check-circle"></i>
+            <span>@ViewBag.SuccessMessage</span>
+        </div>
+    }
+
+    @if (ViewBag.SubmitError is not null)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>@ViewBag.SubmitError</span>
+        </div>
+    }
+
+    @if (!Model.AvailableGroups.Any() || !Model.AvailableModules.Any())
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>Necesitas al menos un grupo y un módulo creados antes de poder asignarlos.</span>
+        </div>
+    }
+
+    @if (!Model.AvailableAccessTypes.Any())
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>No hay tipos de acceso disponibles todavía. Deben crearse en la base de datos antes de poder asignar un módulo.</span>
+        </div>
+    }
+
+    <form asp-controller="Security" asp-action="AddGroupModule" method="post" id="addGroupModuleForm">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="ag-error" style="margin-bottom:14px;"></div>
+
+        <div class="ag-form-grid">
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="Assignment.SecurityGroupId">Grupo</label>
+                <select asp-for="Assignment.SecurityGroupId" class="ag-input" required>
+                    <option value="">- Selecciona un grupo -</option>
+                    @foreach (var group in Model.AvailableGroups)
+                    {
+                        <option value="@group.SecurityGroupId">@group.SecurityGroupName</option>
+                    }
+                </select>
+                <span asp-validation-for="Assignment.SecurityGroupId" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="Assignment.SecurityModuleId">Módulo</label>
+                <select asp-for="Assignment.SecurityModuleId" class="ag-input" required>
+                    <option value="">- Selecciona un módulo -</option>
+                    @foreach (var module in Model.AvailableModules)
+                    {
+                        <option value="@module.SecurityModuleId">@module.SecurityModuleName</option>
+                    }
+                </select>
+                <span asp-validation-for="Assignment.SecurityModuleId" class="ag-error"></span>
+            </div>
+
+            <div class="ag-field ag-form-grid-full">
+                <label asp-for="Assignment.SecurityAccessTypeId">Tipo de acceso</label>
+                <select asp-for="Assignment.SecurityAccessTypeId" class="ag-input" required>
+                    <option value="">- Selecciona un tipo de acceso -</option>
+                    @foreach (var accessType in Model.AvailableAccessTypes)
+                    {
+                        <option value="@accessType.SecurityAccessTypeId">@accessType.SecurityAccessTypeName</option>
+                    }
+                </select>
+                <span asp-validation-for="Assignment.SecurityAccessTypeId" class="ag-error"></span>
+            </div>
+        </div>
+
+        <div class="ag-form-actions">
+            <a class="ag-btn ag-btn-outline" asp-controller="Agent" asp-action="Dashboard">Cancelar</a>
+            <button type="submit" class="ag-btn ag-btn-primary">
+                <i class="bi bi-diagram-3"></i> Asignar módulo
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Módulos asignados</h2>
+            <p>Módulos y su tipo de acceso por grupo de seguridad</p>
+        </div>
+    </div>
+
+    @if (!Model.ExistingAssignments.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-diagram-3"></i>
+            <p>Todavía no hay módulos asignados a ningún grupo.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Grupo</th>
+                        <th>Módulo</th>
+                        <th>Tipo de acceso</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="groupModulesTableBody">
+                    @foreach (var assignment in Model.ExistingAssignments)
+                    {
+                        <tr data-group-id="@assignment.SecurityGroupId">
+                            <td>@assignment.SecurityGroupName</td>
+                            <td>@assignment.SecurityModuleName</td>
+                            <td><span class="ag-badge ag-badge-info">@assignment.SecurityAccessTypeName</span></td>
+                            <td class="text-end">
+                                <form asp-controller="Security" asp-action="DeleteGroupModule" method="post" class="ag-delete-group-module-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@assignment.SecurityGroupModuleId" />
+                                    <button type="submit" class="ag-btn ag-btn-danger-outline ag-btn-sm">
+                                        <i class="bi bi-trash"></i> Quitar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    <tr id="groupModulesNoMatchRow" style="display:none;">
+                        <td colspan="4" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-diagram-3"></i>
+                            <p>Este grupo no tiene módulos asignados.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('addGroupModuleForm');
+            if (form && window.agLocalizeValidation) {
+                agLocalizeValidation(form);
+            }
+            if (form && window.agConfirm) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas asignar este módulo al grupo?', function () {
+                        form.submit();
+                    }, { title: 'Asignar módulo', acceptText: 'Asignar', cancelText: 'Cancelar' });
+                });
+            }
+
+            var groupSelect = document.getElementById('Assignment_SecurityGroupId');
+            var groupModulesTableBody = document.getElementById('groupModulesTableBody');
+            if (groupSelect && groupModulesTableBody) {
+                var rows = Array.prototype.slice.call(groupModulesTableBody.querySelectorAll('tr[data-group-id]'));
+                var noMatchRow = document.getElementById('groupModulesNoMatchRow');
+
+                var filterByGroup = function () {
+                    var selectedGroupId = groupSelect.value;
+                    var visibleCount = 0;
+
+                    rows.forEach(function (row) {
+                        var matches = !selectedGroupId || row.dataset.groupId === selectedGroupId;
+                        row.style.display = matches ? '' : 'none';
+                        if (matches) visibleCount++;
+                    });
+
+                    if (noMatchRow) {
+                        noMatchRow.style.display = (selectedGroupId && visibleCount === 0) ? '' : 'none';
+                    }
+                };
+
+                groupSelect.addEventListener('change', filterByGroup);
+            }
+
+            document.querySelectorAll('.ag-delete-group-module-form').forEach(function (deleteForm) {
+                deleteForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!window.agConfirm) {
+                        deleteForm.submit();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas quitar este módulo del grupo?', function () {
+                        deleteForm.submit();
+                    }, { title: 'Quitar módulo', acceptText: 'Quitar', cancelText: 'Cancelar' });
+                });
+            });
+        })();
+    </script>
+}

@@ -2,6 +2,8 @@
     var isAuthPage = ViewData["AgentAuthPage"] as bool? ?? false;
     var agent = Context.Session.GetObject<AgentUser>("CurrentAgent");
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var isOnSecurityPage = string.Equals(currentController, "Security", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -35,14 +37,39 @@
                     <a class="ag-nav-item @(currentAction == "Requests" ? "active" : "")" asp-controller="Agent" asp-action="Requests">
                         <i class="bi bi-ticket-perforated"></i> <span>Solicitudes</span>
                     </a>
-                    <a class="ag-nav-item is-disabled" href="#" onclick="return false;">
-                        <i class="bi bi-people"></i> <span>Empleados</span>
-                        <span class="ag-nav-badge">Próx.</span>
-                    </a>
-                    <a class="ag-nav-item is-disabled" href="#" onclick="return false;">
-                        <i class="bi bi-bar-chart-line"></i> <span>Reportes</span>
-                        <span class="ag-nav-badge">Próx.</span>
-                    </a>
+                    <button type="button" class="ag-nav-item ag-nav-toggle @(isOnSecurityPage ? "is-expanded" : "")" id="agSettingsToggle">
+                        <i class="bi bi-gear"></i> <span>Ajustes</span>
+                        <span class="ag-nav-toggle-meta">
+                            <i class="bi bi-chevron-down ag-nav-chevron"></i>
+                        </span>
+                    </button>
+                    <div class="ag-nav-submenu @(isOnSecurityPage ? "is-open" : "")" id="agSettingsSubmenu">
+                        <div class="ag-nav-subsection">Seguridad</div>
+                        <a class="ag-nav-subitem is-disabled" href="#" onclick="return false;">
+                            <i class="bi bi-key"></i> <span>Cambiar contraseña</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "AddUser" ? "active" : "")" asp-controller="Security" asp-action="AddUser">
+                            <i class="bi bi-person-plus"></i> <span>Agregar usuario</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "Users" || currentAction == "EditUser" ? "active" : "")" asp-controller="Security" asp-action="Users">
+                            <i class="bi bi-person-gear"></i> <span>Modificar usuario</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "AddGroup" ? "active" : "")" asp-controller="Security" asp-action="AddGroup">
+                            <i class="bi bi-people"></i> <span>Agregar grupo</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "Groups" || currentAction == "EditGroup" ? "active" : "")" asp-controller="Security" asp-action="Groups">
+                            <i class="bi bi-people-fill"></i> <span>Modificar grupo</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "AddModule" ? "active" : "")" asp-controller="Security" asp-action="AddModule">
+                            <i class="bi bi-puzzle"></i> <span>Agregar módulo</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "Modules" || currentAction == "EditModule" ? "active" : "")" asp-controller="Security" asp-action="Modules">
+                            <i class="bi bi-puzzle-fill"></i> <span>Modificar módulo</span>
+                        </a>
+                        <a class="ag-nav-subitem @(currentAction == "AddGroupModule" ? "active" : "")" asp-controller="Security" asp-action="AddGroupModule">
+                            <i class="bi bi-diagram-3"></i> <span>Agregar módulo a grupo</span>
+                        </a>
+                    </div>
 
                     <div class="ag-nav-section">Cuenta</div>
                     <a class="ag-nav-item" asp-controller="AgentAccount" asp-action="Logout">
@@ -92,6 +119,77 @@
             </div>
         </div>
 
+        <div class="ag-modal-overlay" id="agConfirmOverlay">
+            <div class="ag-modal">
+                <div class="ag-modal-icon"><i class="bi bi-question-circle"></i></div>
+                <h3 class="ag-modal-title" id="agConfirmTitle">¿Confirmar acción?</h3>
+                <p class="ag-modal-message" id="agConfirmMessage">¿Deseas continuar?</p>
+                <div class="ag-modal-actions">
+                    <button type="button" class="ag-btn ag-btn-outline" id="agConfirmCancel">Cancelar</button>
+                    <button type="button" class="ag-btn ag-btn-primary" id="agConfirmAccept">Confirmar</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            window.agConfirm = function (message, onConfirm, options) {
+                options = options || {};
+                var overlay = document.getElementById('agConfirmOverlay');
+                var titleEl = document.getElementById('agConfirmTitle');
+                var messageEl = document.getElementById('agConfirmMessage');
+                var acceptBtn = document.getElementById('agConfirmAccept');
+                var cancelBtn = document.getElementById('agConfirmCancel');
+
+                titleEl.textContent = options.title || '¿Confirmar acción?';
+                messageEl.textContent = message;
+                acceptBtn.textContent = options.acceptText || 'Confirmar';
+                cancelBtn.textContent = options.cancelText || 'Cancelar';
+
+                overlay.classList.add('is-open');
+
+                function cleanup() {
+                    overlay.classList.remove('is-open');
+                    acceptBtn.removeEventListener('click', onAccept);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    overlay.removeEventListener('click', onOverlayClick);
+                }
+                function onAccept() { cleanup(); onConfirm(); }
+                function onCancel() { cleanup(); }
+                function onOverlayClick(e) { if (e.target === overlay) onCancel(); }
+
+                acceptBtn.addEventListener('click', onAccept);
+                cancelBtn.addEventListener('click', onCancel);
+                overlay.addEventListener('click', onOverlayClick);
+            };
+        </script>
+
+        <script>
+            // Replaces the browser's own (usually English) native validation
+            // bubbles with Spanish messages for every field in the given form.
+            window.agLocalizeValidation = function (form) {
+                if (!form) return;
+
+                var fields = form.querySelectorAll('input, select, textarea');
+                fields.forEach(function (field) {
+                    field.addEventListener('invalid', function () {
+                        if (field.validity.valueMissing) {
+                            field.setCustomValidity('Este campo es requerido.');
+                        } else if (field.validity.typeMismatch || field.validity.patternMismatch) {
+                            field.setCustomValidity('El valor ingresado no es válido.');
+                        } else if (field.validity.rangeUnderflow || field.validity.rangeOverflow) {
+                            field.setCustomValidity('El valor ingresado está fuera del rango permitido.');
+                        } else if (field.validity.tooShort || field.validity.tooLong) {
+                            field.setCustomValidity('La longitud del texto no es válida.');
+                        } else if (!field.validity.valid) {
+                            field.setCustomValidity('Este valor no es válido.');
+                        }
+                    });
+                    field.addEventListener('input', function () { field.setCustomValidity(''); });
+                    field.addEventListener('change', function () { field.setCustomValidity(''); });
+                });
+            };
+        </script>
+
         <script>
             (function () {
                 var toggle = document.getElementById('agToggle');
@@ -99,6 +197,15 @@
                 if (toggle && shell) {
                     toggle.addEventListener('click', function () {
                         shell.classList.toggle('ag-sidebar-collapsed');
+                    });
+                }
+
+                var settingsToggle = document.getElementById('agSettingsToggle');
+                var settingsSubmenu = document.getElementById('agSettingsSubmenu');
+                if (settingsToggle && settingsSubmenu) {
+                    settingsToggle.addEventListener('click', function () {
+                        settingsToggle.classList.toggle('is-expanded');
+                        settingsSubmenu.classList.toggle('is-open');
                     });
                 }
             })();

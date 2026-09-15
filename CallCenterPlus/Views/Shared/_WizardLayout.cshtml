@@ -4,6 +4,13 @@
         ? "?"
         : string.Concat(sessionEmployee.EmployeeName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Take(2).Select(p => char.ToUpper(p[0])));
+
+    var isEmployeeLoginPage = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Account", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Login", StringComparison.OrdinalIgnoreCase);
+
+    var brandUrl = isEmployeeLoginPage
+        ? Url.Action("Login", "AgentAccount")
+        : (sessionEmployee is null ? Url.Action("Login", "Account") : Url.Action("Start", "Request"));
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -18,7 +25,7 @@
 </head>
 <body class="cc-body">
     <header class="cc-topbar">
-        <a class="cc-brand" href="@(sessionEmployee is null ? Url.Action("Login", "Account") : Url.Action("Start", "Request"))">
+        <a class="cc-brand" href="@brandUrl" title="@(isEmployeeLoginPage ? "Acceso para agentes de soporte" : null)">
             <span class="cc-brand-icon"><i class="bi bi-headset"></i></span>
             <span class="cc-brand-text">
                 <span class="cc-brand-title d-block">CallCenterPlus</span>

@@ -1,0 +1,268 @@
+@model CallCenterPlus.Models.TicketReviewViewModel
+@{
+    ViewData["Title"] = "Ticket #" + Model.Ticket.TicketId;
+
+    string StatusName(int statusId) => statusId switch
+    {
+        1 => "En cola",
+        2 => "Técnico asignado",
+        3 => "Técnico trabajando",
+        4 => "Finalizado técnico",
+        5 => "Finalizado",
+        _ => "Desconocido",
+    };
+
+    string BadgeClass(int statusId) => statusId switch
+    {
+        1 => "ag-badge-info",
+        2 => "ag-badge-primary",
+        3 => "ag-badge-warning",
+        4 => "ag-badge-success",
+        5 => "ag-badge-success",
+        _ => "ag-badge-info",
+    };
+}
+
+<div class="ag-detail-row">
+    <div class="ag-card">
+        <div class="ag-card-header">
+            <div>
+                <a class="ag-btn ag-btn-outline ag-btn-xs" asp-controller="Agent" asp-action="Requests" style="margin-bottom:12px;">
+                    <i class="bi bi-arrow-left"></i> Volver a solicitudes
+                </a>
+                <h2>Asignación</h2>
+                <p>Asigna un agente y actualiza el estatus del ticket</p>
+            </div>
+        </div>
+
+        @if (ViewBag.SuccessMessage is not null)
+        {
+            <div class="ag-alert-success">
+                <i class="bi bi-check-circle"></i>
+                <span>@ViewBag.SuccessMessage</span>
+            </div>
+        }
+
+        @if (ViewBag.SubmitError is not null)
+        {
+            <div class="ag-alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>@ViewBag.SubmitError</span>
+            </div>
+        }
+
+        <form asp-controller="Agent" asp-action="SaveMovement" method="post" id="movementForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="TicketId" value="@Model.Ticket.TicketId" />
+
+            <div class="ag-assign-grid">
+                <div class="ag-field">
+                    <label for="agentSelect">Agente</label>
+                    <select id="agentSelect" name="AgentId" class="ag-input">
+                        @foreach (var agent in Model.AvailableAgents)
+                        {
+                            <option value="@agent.SecurityUserId" selected="@(agent.SecurityUserId == Model.SelectedAgentId ? "selected" : null)">@agent.FullName</option>
+                        }
+                    </select>
+                </div>
+                <div class="ag-field">
+                    <label for="statusSelect">Estatus</label>
+                    <select id="statusSelect" name="StatusId" class="ag-input">
+                        @foreach (var status in Model.AvailableStatuses)
+                        {
+                            <option value="@status.TicketStatusId" selected="@(status.TicketStatusId == Model.SelectedStatusId ? "selected" : null)">@status.TicketStatusName</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="ag-field" id="observacionesField" style="margin-top:14px; display:none;">
+                <label for="observacionesInput">Observaciones</label>
+                <textarea id="observacionesInput" name="Observaciones" class="ag-input" placeholder="Describe lo realizado en esta actualización"></textarea>
+            </div>
+
+            <div class="ag-assign-grid" id="finalizadoFields" style="margin-top:14px; display:none;">
+                <div class="ag-field">
+                    <label for="minutosInput">Minutos invertidos</label>
+                    <input id="minutosInput" name="Minutos" type="number" min="0" class="ag-input" placeholder="Ej: 30" />
+                </div>
+                <div class="ag-field">
+                    <label for="fechaFinalizacionInput">Fecha de finalización</label>
+                    <input id="fechaFinalizacionInput" name="FechaFinalizacion" type="datetime-local" class="ag-input" />
+                </div>
+            </div>
+
+            <div class="ag-form-actions">
+                <button type="submit" class="ag-btn ag-btn-primary">
+                    <i class="bi bi-save"></i> Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="ag-card">
+        <div class="ag-card-header ag-detail-header">
+            <div>
+                <h2>Ticket #@Model.Ticket.TicketId</h2>
+                <p>@Model.ServiceAreaDetailName</p>
+            </div>
+            <span class="ag-badge @BadgeClass(Model.Ticket.TicketStatusId)">@StatusName(Model.Ticket.TicketStatusId)</span>
+        </div>
+
+        @if (ViewBag.LoadFailed == true)
+        {
+            <div class="ag-alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>No pudimos cargar algunos datos del ticket. Es posible que la información mostrada esté incompleta.</span>
+            </div>
+        }
+
+        <div class="ag-detail-grid">
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Empleado</div>
+                <div class="ag-detail-value">@(Model.Ticket.EmployeeName ?? "—")</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Cédula</div>
+                <div class="ag-detail-value">@(Model.Ticket.EmployeeIdNumber)</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Gerencia</div>
+                <div class="ag-detail-value">@(Model.Ticket.ManagementName ?? "—")</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">División</div>
+                <div class="ag-detail-value">@(Model.Ticket.ManagementDivisionName ?? "—")</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Teléfono / extensión</div>
+                <div class="ag-detail-value">@(Model.Ticket.EmployeePhone > 0 ? Model.Ticket.EmployeePhone.ToString() : "—")</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Tipo de solicitud</div>
+                <div class="ag-detail-value">@Model.ServiceAreaDetailName</div>
+            </div>
+            <div class="ag-detail-stat">
+                <div class="ag-detail-label">Fecha de creación</div>
+                <div class="ag-detail-value">@Model.Ticket.TicketStartDate.ToString("dd/MM/yyyy hh:mm tt")</div>
+            </div>
+            @if (Model.Ticket.TicketEndDate.HasValue)
+            {
+                <div class="ag-detail-stat">
+                    <div class="ag-detail-label">Fecha de cierre</div>
+                    <div class="ag-detail-value">@Model.Ticket.TicketEndDate.Value.ToString("dd/MM/yyyy hh:mm tt")</div>
+                </div>
+            }
+        </div>
+
+        <div class="ag-detail-stat" style="margin-top:16px;">
+            <div class="ag-detail-label">Comentarios</div>
+            <div class="ag-detail-value" style="font-weight:400;">@(string.IsNullOrWhiteSpace(Model.Ticket.TicketRemarks) ? "—" : Model.Ticket.TicketRemarks)</div>
+        </div>
+    </div>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Historial de movimientos</h2>
+            <p>Seguimiento completo del ticket</p>
+        </div>
+    </div>
+
+    @if (!Model.Movements.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-clock-history"></i>
+            <p>Este ticket aún no tiene movimientos registrados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-timeline">
+            @foreach (var movement in Model.Movements)
+            {
+                <div class="ag-timeline-item">
+                    <div class="ag-timeline-dot"><i class="bi bi-person-workspace"></i></div>
+                    <div class="ag-timeline-content">
+                        <span class="ag-timeline-author">@(movement.FullName ?? "—")</span>
+                        <span class="ag-timeline-date">@movement.TicketMovementDate.ToString("dd/MM/yyyy hh:mm tt")</span>
+                        @if (!string.IsNullOrWhiteSpace(movement.TicketDetailProcessDescrption))
+                        {
+                            <p class="ag-timeline-text">@movement.TicketDetailProcessDescrption</p>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(movement.TicketDetailRemarksByTechnician))
+                        {
+                            <p class="ag-timeline-text">@movement.TicketDetailRemarksByTechnician</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(movement.TicketStatusName))
+                        {
+                            <p class="ag-timeline-meta">Estatus: @movement.TicketStatusName</p>
+                        }
+                        @if (movement.TicketDetailMinutesByTechnician > 0)
+                        {
+                            <p class="ag-timeline-meta">Minutos invertidos: @movement.TicketDetailMinutesByTechnician</p>
+                        }
+                        @if (movement.TicketDetailEndDateByTechnician.HasValue)
+                        {
+                            <p class="ag-timeline-meta">Fecha de finalización: @movement.TicketDetailEndDateByTechnician.Value.ToString("dd/MM/yyyy hh:mm tt")</p>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var statusSelect = document.getElementById('statusSelect');
+            var observacionesField = document.getElementById('observacionesField');
+            var finalizadoFields = document.getElementById('finalizadoFields');
+            var fechaFinalizacionInput = document.getElementById('fechaFinalizacionInput');
+
+            function toLocalDateTimeInputValue(date) {
+                var pad = function (n) { return String(n).padStart(2, '0'); };
+                return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+            }
+
+            function updateConditionalFields() {
+                var statusId = statusSelect.value;
+                var showObservaciones = statusId === '3' || statusId === '4';
+                var showFinalizado = statusId === '4';
+
+                observacionesField.style.display = showObservaciones ? '' : 'none';
+                finalizadoFields.style.display = showFinalizado ? '' : 'none';
+
+                if (showFinalizado && fechaFinalizacionInput && !fechaFinalizacionInput.value) {
+                    fechaFinalizacionInput.value = toLocalDateTimeInputValue(new Date());
+                }
+            }
+
+            if (statusSelect) {
+                statusSelect.addEventListener('change', updateConditionalFields);
+                updateConditionalFields();
+            }
+
+            var form = document.getElementById('movementForm');
+            if (form && window.agLocalizeValidation) {
+                agLocalizeValidation(form);
+            }
+            if (form && window.agConfirm) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    agConfirm('¿Deseas guardar este movimiento del ticket?', function () {
+                        form.submit();
+                    }, { title: 'Guardar movimiento', acceptText: 'Guardar', cancelText: 'Cancelar' });
+                });
+            }
+        })();
+    </script>
+}

@@ -1,0 +1,68 @@
+@model List<CallCenterPlus.Models.SecurityModuleModel>
+@{
+    ViewData["Title"] = "Modificar módulo";
+}
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Módulos del sistema</h2>
+            <p>Selecciona un módulo para modificar sus datos</p>
+        </div>
+        <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Security" asp-action="AddModule">
+            <i class="bi bi-puzzle"></i> Agregar módulo
+        </a>
+    </div>
+
+    @if (ViewBag.SuccessMessage is not null)
+    {
+        <div class="ag-alert-success">
+            <i class="bi bi-check-circle"></i>
+            <span>@ViewBag.SuccessMessage</span>
+        </div>
+    }
+
+    @if (ViewBag.LoadFailed == true)
+    {
+        <div class="ag-alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>No pudimos cargar la lista de módulos. Intenta de nuevo en unos minutos.</span>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-puzzle"></i>
+            <p>Todavía no hay módulos registrados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var module in Model)
+                    {
+                        <tr>
+                            <td class="ag-table-user-name">@module.SecurityModuleName</td>
+                            <td>@module.SecurityModuleDescription</td>
+                            <td class="text-end">
+                                <a class="ag-btn ag-btn-outline ag-btn-sm" asp-controller="Security" asp-action="EditModule" asp-route-id="@module.SecurityModuleId">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
