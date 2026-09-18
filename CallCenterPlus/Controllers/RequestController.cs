@@ -1,26 +1,35 @@
 using CallCenterPlus.Core;
 using CallCenterPlus.Extensions;
+using CallCenterPlus.Hubs;
 using CallCenterPlus.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.SignalR;
 
 namespace CallCenterPlus.Controllers;
 
 public class RequestController : Controller
 {
     private const int NewTicketStatusId = 1; // TicketStatus: 1 = EN COLA
+    private const int EndedByTechnicianStatusId = 4;
+    private const int EndedStatusId = 5;
 
     private const string SessionEmployeeKey = "CurrentEmployee";
     private const string SessionPendingRequestKey = "PendingRequest";
+    private const string TempDataSuccessKey = "RequestSuccessMessage";
 
     private readonly IServiceAreas _serviceAreas;
     private readonly ITickets _tickets;
+    private readonly ISecurity _security;
+    private readonly IHubContext<TicketsHub> _ticketsHub;
     private readonly ILogger<RequestController> _logger;
 
-    public RequestController(IServiceAreas serviceAreas, ITickets tickets, ILogger<RequestController> logger)
+    public RequestController(IServiceAreas serviceAreas, ITickets tickets, ISecurity security, IHubContext<TicketsHub> ticketsHub, ILogger<RequestController> logger)
     {
         _serviceAreas = serviceAreas;
         _tickets = tickets;
+        _security = security;
+        _ticketsHub = ticketsHub;
         _logger = logger;
     }
 
@@ -82,6 +91,37 @@ public class RequestController : Controller
         _ => "Desconocido",
     };
 
+    private static bool IsEnded(int statusId) =>
+        statusId == EndedByTechnicianStatusId || statusId == EndedStatusId;
+
+    // TicketDetail_Detail doesn't expose the technician's SecurityUserId,
+    // only their FullName — resolve it by name against the full user list.
+    // Needed because reopening a ticket still has to satisfy the FK on
+    // TicketDetail.SecurityUserId even though an employee, not an agent,
+    // is the one taking this action.
+    private int ResolveAgentIdByName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return 0;
+        }
+
+        List<SecurityUserViewModel> allUsers;
+        try
+        {
+            allUsers = _security.GetAllUsers();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener los usuarios (Security.GetAllUsers) para resolver el agente por nombre");
+            return 0;
+        }
+
+        return allUsers
+            .FirstOrDefault(u => string.Equals(u.FullName?.Trim(), fullName.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?.SecurityUserId ?? 0;
+    }
+
     // Screen 1: choose between creating a request or checking a request's status.
     [HttpGet]
     public IActionResult Start()
@@ -112,12 +152,10 @@ public class RequestController : Controller
     public IActionResult NewRequest(NewRequestViewModel model)
     {
         var description = model.Description?.Trim() ?? string.Empty;
-        var selectedDetail = FindServiceAreaDetail(model.RequestTypeId);
-        var isOther = selectedDetail is not null && IsOther(selectedDetail);
-        if (isOther && description.Length < 10)
+        if (description.Length < 20)
         {
             ModelState.AddModelError(nameof(NewRequestViewModel.Description),
-                "Cuéntanos con al menos 10 caracteres qué necesitas.");
+                "Describe tu solicitud con al menos 20 caracteres.");
         }
 
         if (!ModelState.IsValid)
@@ -162,7 +200,7 @@ public class RequestController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult SubmitRequest(int? extensionOrCellPhone)
+    public async Task<IActionResult> SubmitRequest(int? extensionOrCellPhone)
     {
         var pending = HttpContext.Session.GetObject<RequestSessionData>(SessionPendingRequestKey);
         if (pending is null || string.IsNullOrEmpty(pending.RequestTypeId))
@@ -217,6 +255,15 @@ public class RequestController : Controller
         var ticketNumber = $"TCK-{DateTime.Now:yyyy}-{newTicketId:000000}";
 
         HttpContext.Session.Remove(SessionPendingRequestKey);
+
+        try
+        {
+            await _ticketsHub.Clients.All.SendAsync("TicketQueued");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al notificar por SignalR el nuevo ticket {TicketId}", newTicketId);
+        }
 
         return RedirectToAction("Confirmation", new { number = ticketNumber });
     }
@@ -347,6 +394,172 @@ public class RequestController : Controller
             Movements = movements,
         };
 
+        if (TempData[TempDataSuccessKey] is string successMessage)
+        {
+            ViewBag.SuccessMessage = successMessage;
+        }
+
         return View(model);
+    }
+
+    // Lets the employee reopen their own ticket once it's marked as
+    // finished (status 4 or 5), with an observation explaining why.
+    [HttpGet]
+    public IActionResult ReopenTicket(int id)
+    {
+        List<TicketViewModel> myTickets;
+        try
+        {
+            myTickets = _tickets.GetByEmployeeId(CurrentEmployee.EmployeeId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener la solicitud {TicketId} del empleado {EmployeeId} (Tickets.GetByEmployeeId)", id, CurrentEmployee.EmployeeId);
+            return RedirectToAction("CheckStatus");
+        }
+
+        var ticket = myTickets.FirstOrDefault(t => t.TicketId == id);
+        if (ticket is null)
+        {
+            return RedirectToAction("CheckStatus");
+        }
+
+        List<TicketDetail> movements;
+        try
+        {
+            movements = _tickets.GetDetailByTicketId(id).OrderByDescending(m => m.TicketMovementDate).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener el historial (GetDetailByTicketId) de la solicitud {TicketId}", id);
+            movements = new List<TicketDetail>();
+        }
+
+        var latestMovement = movements.FirstOrDefault();
+        var effectiveStatusId = latestMovement?.TicketStatusId ?? ticket.TicketStatusId;
+
+        if (!IsEnded(effectiveStatusId))
+        {
+            // Nothing to reopen if it isn't finished yet.
+            return RedirectToAction("CheckStatus");
+        }
+
+        var detail = LoadServiceAreas(out _).FirstOrDefault(s => s.ServiceAreaDetailId == ticket.ServiceAreaDetailId);
+
+        var model = new ReopenTicketInputModel
+        {
+            TicketId = id,
+            RequestTypeName = detail?.ServiceAreaDetailName ?? "No especificado",
+            StatusName = ResolveStatusName(effectiveStatusId),
+        };
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReopenTicket(ReopenTicketInputModel model)
+    {
+        List<TicketViewModel> myTickets;
+        try
+        {
+            myTickets = _tickets.GetByEmployeeId(CurrentEmployee.EmployeeId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener la solicitud {TicketId} del empleado {EmployeeId} (Tickets.GetByEmployeeId)", model.TicketId, CurrentEmployee.EmployeeId);
+            return RedirectToAction("CheckStatus");
+        }
+
+        var ticket = myTickets.FirstOrDefault(t => t.TicketId == model.TicketId);
+        if (ticket is null)
+        {
+            return RedirectToAction("CheckStatus");
+        }
+
+        List<TicketDetail> movements;
+        try
+        {
+            movements = _tickets.GetDetailByTicketId(model.TicketId).OrderByDescending(m => m.TicketMovementDate).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener el historial (GetDetailByTicketId) de la solicitud {TicketId}", model.TicketId);
+            movements = new List<TicketDetail>();
+        }
+
+        var latestMovement = movements.FirstOrDefault();
+        var effectiveStatusId = latestMovement?.TicketStatusId ?? ticket.TicketStatusId;
+
+        if (!IsEnded(effectiveStatusId))
+        {
+            return RedirectToAction("CheckStatus");
+        }
+
+        IActionResult RedisplayWithError(string? submitError)
+        {
+            if (submitError is not null)
+            {
+                ViewBag.SubmitError = submitError;
+            }
+
+            var detail = LoadServiceAreas(out _).FirstOrDefault(s => s.ServiceAreaDetailId == ticket.ServiceAreaDetailId);
+            model.RequestTypeName = detail?.ServiceAreaDetailName ?? "No especificado";
+            model.StatusName = ResolveStatusName(effectiveStatusId);
+            return View(model);
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return RedisplayWithError(null);
+        }
+
+        // The movement still needs a real SecurityUserId to satisfy the FK,
+        // even though it's the employee (not an agent) reopening it here —
+        // reuse whoever last worked the ticket.
+        var lastAgentId = ResolveAgentIdByName(latestMovement?.FullName);
+        if (lastAgentId <= 0)
+        {
+            _logger.LogError("No se pudo resolver el agente previo por nombre ({FullName}) al reabrir el ticket {TicketId}", latestMovement?.FullName, model.TicketId);
+            return RedisplayWithError("No pudimos reabrir tu solicitud. Intenta nuevamente en unos minutos.");
+        }
+
+        var observaciones = model.Observaciones.Trim();
+        var employeeName = CurrentEmployee.EmployeeName ?? "El empleado";
+        var description = $"{employeeName} reabrió el ticket y colocó la siguiente observación: \"{observaciones}\".";
+
+        var newMovement = new TicketDetail
+        {
+            TicketDetailId = 0,
+            TicketId = model.TicketId,
+            SecurityUserId = lastAgentId,
+            TicketDetailRemarksByTechnician = observaciones,
+            TicketDetailMinutesByTechnician = 0,
+            TicketDetailEndDateByTechnician = null,
+            TicketStatusId = NewTicketStatusId,
+            TicketDetailProcessDescrption = description,
+        };
+
+        try
+        {
+            _tickets.AddOrEditTicketDetail(newMovement);
+            TempData[TempDataSuccessKey] = "Tu solicitud fue reabierta y quedó de nuevo en cola.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al reabrir el ticket {TicketId} (AddOrEditTicketDetail)", model.TicketId);
+            return RedisplayWithError("No pudimos reabrir tu solicitud. Intenta nuevamente en unos minutos.");
+        }
+
+        try
+        {
+            await _ticketsHub.Clients.All.SendAsync("TicketQueued");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al notificar por SignalR la reapertura del ticket {TicketId}", model.TicketId);
+        }
+
+        return RedirectToAction("TicketDetail", new { id = model.TicketId });
     }
 }

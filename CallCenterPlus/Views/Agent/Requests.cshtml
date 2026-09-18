@@ -1,15 +1,52 @@
 @model List<CallCenterPlus.Models.PendingRequestRow>
 @{
     ViewData["Title"] = "Solicitudes";
+    var currentView = ViewBag.CurrentView as string ?? "queue";
+
+    string BadgeClass(string status) => status switch
+    {
+        "En cola" => "ag-badge-info",
+        "Técnico asignado" => "ag-badge-primary",
+        "Técnico trabajando" => "ag-badge-warning",
+        "Finalizado técnico" => "ag-badge-success",
+        "Finalizado" => "ag-badge-success",
+        _ => "ag-badge-info",
+    };
+
+    var (headerTitle, headerSubtitle, emptyMessage) = currentView switch
+    {
+        "attention" => ("Solicitudes en atención", "Tickets que ya tienen un agente asignado", "No hay solicitudes en atención por el momento."),
+        "ended" => ("Solicitudes finalizadas", "Tickets ya finalizados por un técnico", "No hay solicitudes finalizadas por el momento."),
+        _ => ("Solicitudes en cola", "Tickets a la espera de ser tomados por un agente", "No hay solicitudes en cola por el momento."),
+    };
 }
 
 <div class="ag-card">
     <div class="ag-card-header">
         <div>
-            <h2>Solicitudes en cola</h2>
-            <p>Tickets a la espera de ser tomados por un agente</p>
+            <h2>@headerTitle</h2>
+            <p>@headerSubtitle</p>
+        </div>
+        <div class="ag-segmented">
+            <a class="@(currentView == "queue" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="queue">
+                <i class="bi bi-inbox"></i> En cola
+            </a>
+            <a class="@(currentView == "attention" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="attention">
+                <i class="bi bi-headset"></i> En atención
+            </a>
+            <a class="@(currentView == "ended" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="ended">
+                <i class="bi bi-check-circle"></i> Finalizados
+            </a>
         </div>
     </div>
+
+    @if (currentView == "queue")
+    {
+        <div class="ag-alert-info" id="queueLiveBanner" style="display:none;">
+            <span><i class="bi bi-bell"></i> Hay nuevas solicitudes en cola.</span>
+            <button type="button" class="ag-btn ag-btn-primary ag-btn-sm" id="queueLiveRefresh">Actualizar</button>
+        </div>
+    }
 
     @if (ViewBag.LoadFailed == true)
     {
@@ -23,11 +60,16 @@
     {
         <div class="ag-empty-state">
             <i class="bi bi-inbox"></i>
-            <p>No hay solicitudes en cola por el momento.</p>
+            <p>@emptyMessage</p>
         </div>
     }
     else
     {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="requestsSearchInput" class="ag-input" placeholder="Buscar por empleado, tipo, comentarios, fecha o estado..." />
+        </div>
+
         <div class="ag-table-wrap">
             <table class="ag-table">
                 <thead>
@@ -40,7 +82,7 @@
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="requestsTableBody">
                     @foreach (var request in Model)
                     {
                         <tr>
@@ -56,16 +98,151 @@
                             <td>@request.RequestTypeName</td>
                             <td class="ag-table-remarks" title="@request.TicketRemarks">@request.TicketRemarks</td>
                             <td>@request.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
-                            <td><span class="ag-badge ag-badge-info">@request.Status</span></td>
+                            <td><span class="ag-badge @BadgeClass(request.Status)">@request.Status</span></td>
                             <td class="text-end">
-                                <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Agent" asp-action="TicketDetail" asp-route-id="@request.TicketId">
-                                    Tomar ticket
+                                <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Agent" asp-action="TicketDetail" asp-route-id="@request.TicketId" asp-route-view="@currentView">
+                                    @(request.Status == "En cola" ? "Tomar ticket" : "Ver detalle")
                                 </a>
                             </td>
                         </tr>
                     }
+                    <tr id="requestsNoMatchRow" style="display:none;">
+                        <td colspan="6" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-search"></i>
+                            <p>No se encontraron solicitudes que coincidan con tu búsqueda.</p>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
+
+        <div class="ag-pagination" id="requestsPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="requestsPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="requestsPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="requestsNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var tableBody = document.getElementById('requestsTableBody');
+            if (!tableBody) return;
+
+            var searchInput = document.getElementById('requestsSearchInput');
+            var noMatchRow = document.getElementById('requestsNoMatchRow');
+            var pagination = document.getElementById('requestsPagination');
+            var pageInfo = document.getElementById('requestsPageInfo');
+            var prevButton = document.getElementById('requestsPrevPage');
+            var nextButton = document.getElementById('requestsNextPage');
+
+            var pageSize = 10;
+            var currentPage = 1;
+
+            var allRows = Array.prototype.slice.call(tableBody.querySelectorAll('tr'))
+                .filter(function (row) { return row !== noMatchRow; });
+
+            function getMatchingRows() {
+                var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                if (!term) return allRows;
+
+                return allRows.filter(function (row) {
+                    return row.textContent.toLowerCase().indexOf(term) !== -1;
+                });
+            }
+
+            function render() {
+                var matching = getMatchingRows();
+                var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                var start = (currentPage - 1) * pageSize;
+                var pageRows = matching.slice(start, start + pageSize);
+
+                allRows.forEach(function (row) { row.style.display = 'none'; });
+                pageRows.forEach(function (row) { row.style.display = ''; });
+
+                if (noMatchRow) {
+                    noMatchRow.style.display = matching.length === 0 ? '' : 'none';
+                }
+
+                if (pagination) {
+                    pagination.style.display = matching.length > pageSize ? '' : 'none';
+                }
+                if (pageInfo) {
+                    pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                }
+                if (prevButton) {
+                    prevButton.disabled = currentPage <= 1;
+                }
+                if (nextButton) {
+                    nextButton.disabled = currentPage >= totalPages;
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            }
+            if (prevButton) {
+                prevButton.addEventListener('click', function () {
+                    currentPage--;
+                    render();
+                });
+            }
+            if (nextButton) {
+                nextButton.addEventListener('click', function () {
+                    currentPage++;
+                    render();
+                });
+            }
+
+            render();
+        })();
+    </script>
+
+    @if (currentView == "queue")
+    {
+        <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8.0.7/dist/browser/signalr.min.js"></script>
+        <script>
+            (function () {
+                if (!window.signalR) return;
+
+                var searchInput = document.getElementById('requestsSearchInput');
+                var banner = document.getElementById('queueLiveBanner');
+                var refreshButton = document.getElementById('queueLiveRefresh');
+
+                if (refreshButton) {
+                    refreshButton.addEventListener('click', function () {
+                        window.location.reload();
+                    });
+                }
+
+                var connection = new signalR.HubConnectionBuilder()
+                    .withUrl('/hubs/tickets')
+                    .withAutomaticReconnect()
+                    .build();
+
+                connection.on('TicketQueued', function () {
+                    var isSearching = searchInput && searchInput.value.trim().length > 0;
+                    if (isSearching) {
+                        if (banner) banner.style.display = '';
+                    } else {
+                        window.location.reload();
+                    }
+                });
+
+                connection.start().catch(function (err) {
+                    console.error('No se pudo conectar a las notificaciones en tiempo real.', err);
+                });
+            })();
+        </script>
+    }
+}

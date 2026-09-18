@@ -86,7 +86,7 @@
         </div>
 
         <div class="ag-form-actions">
-            <a class="ag-btn ag-btn-outline" asp-controller="Agent" asp-action="Dashboard">Cancelar</a>
+            <a class="ag-btn ag-btn-outline" asp-controller="Agent" asp-action="Requests">Cancelar</a>
             <button type="submit" class="ag-btn ag-btn-primary">
                 <i class="bi bi-diagram-3"></i> Asignar módulo
             </button>
@@ -111,6 +111,11 @@
     }
     else
     {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="groupModulesSearchInput" class="ag-input" placeholder="Buscar por grupo, módulo o tipo de acceso..." />
+        </div>
+
         <div class="ag-table-wrap">
             <table class="ag-table">
                 <thead>
@@ -142,11 +147,21 @@
                     <tr id="groupModulesNoMatchRow" style="display:none;">
                         <td colspan="4" class="ag-empty-state" style="padding:24px;">
                             <i class="bi bi-diagram-3"></i>
-                            <p>Este grupo no tiene módulos asignados.</p>
+                            <p>No se encontraron módulos asignados que coincidan.</p>
                         </td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <div class="ag-pagination" id="groupModulesPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="groupModulesPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="groupModulesPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="groupModulesNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
         </div>
     }
 </div>
@@ -176,25 +191,82 @@
             var groupSelect = document.getElementById('Assignment_SecurityGroupId');
             var groupModulesTableBody = document.getElementById('groupModulesTableBody');
             if (groupSelect && groupModulesTableBody) {
-                var rows = Array.prototype.slice.call(groupModulesTableBody.querySelectorAll('tr[data-group-id]'));
+                var searchInput = document.getElementById('groupModulesSearchInput');
                 var noMatchRow = document.getElementById('groupModulesNoMatchRow');
+                var pagination = document.getElementById('groupModulesPagination');
+                var pageInfo = document.getElementById('groupModulesPageInfo');
+                var prevButton = document.getElementById('groupModulesPrevPage');
+                var nextButton = document.getElementById('groupModulesNextPage');
 
-                var filterByGroup = function () {
+                var pageSize = 10;
+                var currentPage = 1;
+
+                var allRows = Array.prototype.slice.call(groupModulesTableBody.querySelectorAll('tr[data-group-id]'));
+
+                function getMatchingRows() {
                     var selectedGroupId = groupSelect.value;
-                    var visibleCount = 0;
+                    var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
-                    rows.forEach(function (row) {
-                        var matches = !selectedGroupId || row.dataset.groupId === selectedGroupId;
-                        row.style.display = matches ? '' : 'none';
-                        if (matches) visibleCount++;
+                    return allRows.filter(function (row) {
+                        var matchesGroup = !selectedGroupId || row.dataset.groupId === selectedGroupId;
+                        var matchesSearch = !term || row.textContent.toLowerCase().indexOf(term) !== -1;
+                        return matchesGroup && matchesSearch;
                     });
+                }
+
+                function render() {
+                    var matching = getMatchingRows();
+                    var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                    var start = (currentPage - 1) * pageSize;
+                    var pageRows = matching.slice(start, start + pageSize);
+
+                    allRows.forEach(function (row) { row.style.display = 'none'; });
+                    pageRows.forEach(function (row) { row.style.display = ''; });
 
                     if (noMatchRow) {
-                        noMatchRow.style.display = (selectedGroupId && visibleCount === 0) ? '' : 'none';
+                        noMatchRow.style.display = matching.length === 0 ? '' : 'none';
                     }
-                };
 
-                groupSelect.addEventListener('change', filterByGroup);
+                    if (pagination) {
+                        pagination.style.display = matching.length > pageSize ? '' : 'none';
+                    }
+                    if (pageInfo) {
+                        pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                    }
+                    if (prevButton) {
+                        prevButton.disabled = currentPage <= 1;
+                    }
+                    if (nextButton) {
+                        nextButton.disabled = currentPage >= totalPages;
+                    }
+                }
+
+                groupSelect.addEventListener('change', function () {
+                    currentPage = 1;
+                    render();
+                });
+                if (searchInput) {
+                    searchInput.addEventListener('input', function () {
+                        currentPage = 1;
+                        render();
+                    });
+                }
+                if (prevButton) {
+                    prevButton.addEventListener('click', function () {
+                        currentPage--;
+                        render();
+                    });
+                }
+                if (nextButton) {
+                    nextButton.addEventListener('click', function () {
+                        currentPage++;
+                        render();
+                    });
+                }
+
+                render();
             }
 
             document.querySelectorAll('.ag-delete-group-module-form').forEach(function (deleteForm) {

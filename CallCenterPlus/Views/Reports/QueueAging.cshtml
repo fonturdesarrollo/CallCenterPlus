@@ -1,0 +1,255 @@
+@model CallCenterPlus.Models.QueueAgingReportViewModel
+@{
+    ViewData["Title"] = "Reportes";
+
+    string BadgeClass(string severity) => severity switch
+    {
+        "warning" => "ag-badge-warning",
+        "danger" => "ag-badge-danger",
+        _ => "ag-badge-success",
+    };
+}
+
+@if (ViewBag.LoadFailed == true)
+{
+    <div class="ag-alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>No pudimos cargar algunos datos (tickets o catálogo de categorías). Los totales mostrados pueden estar incompletos.</span>
+    </div>
+}
+
+<div class="ag-card">
+    <div class="ag-metrics-row" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+        <div class="ag-metric ag-metric-primary">
+            <div class="ag-metric-label">Solicitudes en cola</div>
+            <div class="ag-metric-value">@Model.TotalInQueue</div>
+        </div>
+        <div class="ag-metric ag-metric-info">
+            <div class="ag-metric-label">Espera promedio</div>
+            <div class="ag-metric-value">@Model.AverageWaitingLabel</div>
+        </div>
+        <div class="ag-metric ag-metric-danger">
+            <div class="ag-metric-label">Mayor tiempo esperando</div>
+            <div class="ag-metric-value">@(Model.LongestWaiting is not null ? $"#{Model.LongestWaiting.TicketId} · {Model.LongestWaiting.WaitingLabel}" : "—")</div>
+        </div>
+    </div>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Solicitudes por tiempo de espera</h2>
+            <p>Cuánto llevan sin ser tomadas por un agente</p>
+        </div>
+    </div>
+
+    @if (Model.TotalInQueue == 0)
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-hourglass-split"></i>
+            <p>No hay solicitudes en cola por el momento.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-chart-wrap" style="height: 220px;">
+            <canvas id="queueAgingChart"></canvas>
+        </div>
+    }
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Detalle de solicitudes en cola</h2>
+            <p>Ordenadas de mayor a menor tiempo de espera</p>
+        </div>
+    </div>
+
+    @if (!Model.Rows.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-hourglass-split"></i>
+            <p>No hay solicitudes en cola por el momento.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="agingSearchInput" class="ag-input" placeholder="Buscar por ticket, empleado, departamento o categoría..." />
+        </div>
+
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Empleado</th>
+                        <th>Categoría</th>
+                        <th>Fecha de creación</th>
+                        <th>Esperando</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="agingTableBody">
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>#@row.TicketId</td>
+                            <td>
+                                <div class="ag-table-user-name">@row.EmployeeName</div>
+                                <div class="ag-table-user-dept">@row.Department</div>
+                            </td>
+                            <td>@row.Category</td>
+                            <td>@row.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
+                            <td><span class="ag-badge @BadgeClass(row.Severity)">@row.WaitingLabel</span></td>
+                            <td class="text-end">
+                                <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Agent" asp-action="TicketDetail" asp-route-id="@row.TicketId" asp-route-view="queue">
+                                    Tomar ticket
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                    <tr id="agingNoMatchRow" style="display:none;">
+                        <td colspan="6" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-search"></i>
+                            <p>No se encontraron solicitudes que coincidan con tu búsqueda.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ag-pagination" id="agingPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="agingPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="agingPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="agingNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var canvas = document.getElementById('queueAgingChart');
+            if (canvas) {
+                var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Buckets.Select(b => b.Label)));
+                var counts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Buckets.Select(b => b.Count)));
+                var colorBySeverity = { success: '#2eb85c', warning: '#f9b115', danger: '#e55353' };
+                var colors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Buckets.Select(b => b.Severity)))
+                    .map(function (severity) { return colorBySeverity[severity] || '#4b3fd6'; });
+
+                new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: counts,
+                            backgroundColor: colors,
+                            borderRadius: 4,
+                            maxBarThickness: 60,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (item) {
+                                        return item.parsed.y + ' solicitudes';
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eceff2' } },
+                            x: { grid: { display: false } },
+                        },
+                    },
+                });
+            }
+
+            var tableBody = document.getElementById('agingTableBody');
+            if (!tableBody) return;
+
+            var searchInput = document.getElementById('agingSearchInput');
+            var noMatchRow = document.getElementById('agingNoMatchRow');
+            var pagination = document.getElementById('agingPagination');
+            var pageInfo = document.getElementById('agingPageInfo');
+            var prevButton = document.getElementById('agingPrevPage');
+            var nextButton = document.getElementById('agingNextPage');
+
+            var pageSize = 10;
+            var currentPage = 1;
+
+            var allRows = Array.prototype.slice.call(tableBody.querySelectorAll('tr'))
+                .filter(function (row) { return row !== noMatchRow; });
+
+            function getMatchingRows() {
+                var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                if (!term) return allRows;
+
+                return allRows.filter(function (row) {
+                    return row.textContent.toLowerCase().indexOf(term) !== -1;
+                });
+            }
+
+            function render() {
+                var matching = getMatchingRows();
+                var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                var start = (currentPage - 1) * pageSize;
+                var pageRows = matching.slice(start, start + pageSize);
+
+                allRows.forEach(function (row) { row.style.display = 'none'; });
+                pageRows.forEach(function (row) { row.style.display = ''; });
+
+                if (noMatchRow) {
+                    noMatchRow.style.display = matching.length === 0 ? '' : 'none';
+                }
+
+                if (pagination) {
+                    pagination.style.display = matching.length > pageSize ? '' : 'none';
+                }
+                if (pageInfo) {
+                    pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                }
+                if (prevButton) {
+                    prevButton.disabled = currentPage <= 1;
+                }
+                if (nextButton) {
+                    nextButton.disabled = currentPage >= totalPages;
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            }
+            if (prevButton) {
+                prevButton.addEventListener('click', function () {
+                    currentPage--;
+                    render();
+                });
+            }
+            if (nextButton) {
+                nextButton.addEventListener('click', function () {
+                    currentPage++;
+                    render();
+                });
+            }
+
+            render();
+        })();
+    </script>
+}

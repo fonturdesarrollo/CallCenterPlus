@@ -1,9 +1,64 @@
+@using CallCenterPlus.Core
+@inject ISecurity Security
 @{
     var isAuthPage = ViewData["AgentAuthPage"] as bool? ?? false;
     var agent = Context.Session.GetObject<AgentUser>("CurrentAgent");
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     var isOnSecurityPage = string.Equals(currentController, "Security", StringComparison.OrdinalIgnoreCase);
+    var isOnRequestsMenu = (string.Equals(currentController, "Agent", StringComparison.OrdinalIgnoreCase)
+            && (currentAction == "Requests" || currentAction == "TicketDetail"))
+        || string.Equals(currentController, "Request", StringComparison.OrdinalIgnoreCase);
+    var isOnReportsMenu = string.Equals(currentController, "Reports", StringComparison.OrdinalIgnoreCase);
+
+    // Group 1 is the system administrator group: always full access to every
+    // module, regardless of what SecurityGroupModule actually has assigned.
+    var isAdmin = agent?.SecurityGroupId == 1;
+    var permittedModuleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    if (!isAuthPage && !isAdmin && agent is not null)
+    {
+        try
+        {
+            var moduleNamesById = Security.GetAllModules()
+                .Where(m => m.SecurityModuleName is not null)
+                .ToDictionary(m => m.SecurityModuleId, m => m.SecurityModuleName!);
+
+            foreach (var assigned in Security.GetModulesByGroupId(agent.SecurityGroupId))
+            {
+                if (moduleNamesById.TryGetValue(assigned.SecurityModuleId, out var name))
+                {
+                    permittedModuleNames.Add(name);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Fail closed: if the permission lookup itself fails, gated menu
+            // items below simply won't show rather than showing everything.
+        }
+    }
+
+    // Whether the current group has this module (by name) — Admin always does.
+    bool HasModule(string moduleName) => isAdmin || permittedModuleNames.Contains(moduleName);
+
+    // Same idea, but checked live against Security.GroupHasAccessToModule by
+    // numeric SecurityModuleId — used where the module is identified by id
+    // instead of by name (Reportes = 5, Agregar usuario = 3, Modificar
+    // usuario = 4). Matches ModuleAccessControl/RequireModuleIdAttribute.
+    bool HasModuleId(int moduleId)
+    {
+        if (isAdmin) return true;
+        if (isAuthPage || agent is null) return false;
+
+        try
+        {
+            return Security.GroupHasAccessToModule(agent.SecurityGroupId, moduleId);
+        }
+        catch (Exception)
+        {
+            return false; // Fail closed.
+        }
+    }
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -23,20 +78,55 @@
     {
         <div class="ag-shell" id="agShell">
             <aside class="ag-sidebar" id="agSidebar">
-                <a class="ag-brand" asp-controller="Agent" asp-action="Dashboard">
+                <a class="ag-brand" asp-controller="Agent" asp-action="Requests">
                     <span class="ag-brand-icon"><i class="bi bi-headset"></i></span>
                     <span class="ag-brand-text">CallCenter<strong>Plus</strong></span>
                 </a>
 
                 <nav class="ag-nav">
-                    <a class="ag-nav-item @(currentAction == "Dashboard" ? "active" : "")" asp-controller="Agent" asp-action="Dashboard">
-                        <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
-                    </a>
-
                     <div class="ag-nav-section">Gestión</div>
-                    <a class="ag-nav-item @(currentAction == "Requests" ? "active" : "")" asp-controller="Agent" asp-action="Requests">
-                        <i class="bi bi-ticket-perforated"></i> <span>Solicitudes</span>
-                    </a>
+                    @if (HasModule("Solicitudes"))
+                    {
+                        <button type="button" class="ag-nav-item ag-nav-toggle @(isOnRequestsMenu ? "is-expanded" : "")" id="agRequestsToggle">
+                            <i class="bi bi-ticket-perforated"></i> <span>Solicitudes</span>
+                            <span class="ag-nav-toggle-meta">
+                                <i class="bi bi-chevron-down ag-nav-chevron"></i>
+                            </span>
+                        </button>
+                        <div class="ag-nav-submenu @(isOnRequestsMenu ? "is-open" : "")" id="agRequestsSubmenu">
+                            <a class="ag-nav-subitem @(currentController == "Agent" && (currentAction == "Requests" || currentAction == "TicketDetail") ? "active" : "")" asp-controller="Agent" asp-action="Requests">
+                                <i class="bi bi-inbox"></i> <span>Cola de solicitudes</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentController == "Request" ? "active" : "")" asp-controller="Request" asp-action="Start">
+                                <i class="bi bi-plus-circle"></i> <span>Crear solicitud</span>
+                            </a>
+                        </div>
+                    }
+                    @* SecurityModule id 5 = "Reportes". Admin always has access;
+                       other groups need GroupHasAccessToModule(groupId, 5). *@
+                    @if (isAdmin || HasModuleId(5))
+                    {
+                        <button type="button" class="ag-nav-item ag-nav-toggle @(isOnReportsMenu ? "is-expanded" : "")" id="agReportsToggle">
+                            <i class="bi bi-bar-chart"></i> <span>Reportes</span>
+                            <span class="ag-nav-toggle-meta">
+                                <i class="bi bi-chevron-down ag-nav-chevron"></i>
+                            </span>
+                        </button>
+                        <div class="ag-nav-submenu @(isOnReportsMenu ? "is-open" : "")" id="agReportsSubmenu">
+                            <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "Volume" ? "active" : "")" asp-controller="Reports" asp-action="Volume">
+                                <i class="bi bi-bar-chart-steps"></i> <span>Volumen de solicitudes</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "ResolutionTime" ? "active" : "")" asp-controller="Reports" asp-action="ResolutionTime">
+                                <i class="bi bi-stopwatch"></i> <span>Tiempos de resolución por agente</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "Reopened" ? "active" : "")" asp-controller="Reports" asp-action="Reopened">
+                                <i class="bi bi-arrow-repeat"></i> <span>Tickets reabiertos</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "QueueAging" ? "active" : "")" asp-controller="Reports" asp-action="QueueAging">
+                                <i class="bi bi-hourglass-split"></i> <span>Solicitudes sin atender</span>
+                            </a>
+                        </div>
+                    }
                     <button type="button" class="ag-nav-item ag-nav-toggle @(isOnSecurityPage ? "is-expanded" : "")" id="agSettingsToggle">
                         <i class="bi bi-gear"></i> <span>Ajustes</span>
                         <span class="ag-nav-toggle-meta">
@@ -45,30 +135,45 @@
                     </button>
                     <div class="ag-nav-submenu @(isOnSecurityPage ? "is-open" : "")" id="agSettingsSubmenu">
                         <div class="ag-nav-subsection">Seguridad</div>
-                        <a class="ag-nav-subitem is-disabled" href="#" onclick="return false;">
+                        <a class="ag-nav-subitem @(currentController == "AgentAccount" && currentAction == "ChangePassword" ? "active" : "")" asp-controller="AgentAccount" asp-action="ChangePassword">
                             <i class="bi bi-key"></i> <span>Cambiar contraseña</span>
                         </a>
-                        <a class="ag-nav-subitem @(currentAction == "AddUser" ? "active" : "")" asp-controller="Security" asp-action="AddUser">
-                            <i class="bi bi-person-plus"></i> <span>Agregar usuario</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "Users" || currentAction == "EditUser" ? "active" : "")" asp-controller="Security" asp-action="Users">
-                            <i class="bi bi-person-gear"></i> <span>Modificar usuario</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "AddGroup" ? "active" : "")" asp-controller="Security" asp-action="AddGroup">
-                            <i class="bi bi-people"></i> <span>Agregar grupo</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "Groups" || currentAction == "EditGroup" ? "active" : "")" asp-controller="Security" asp-action="Groups">
-                            <i class="bi bi-people-fill"></i> <span>Modificar grupo</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "AddModule" ? "active" : "")" asp-controller="Security" asp-action="AddModule">
-                            <i class="bi bi-puzzle"></i> <span>Agregar módulo</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "Modules" || currentAction == "EditModule" ? "active" : "")" asp-controller="Security" asp-action="Modules">
-                            <i class="bi bi-puzzle-fill"></i> <span>Modificar módulo</span>
-                        </a>
-                        <a class="ag-nav-subitem @(currentAction == "AddGroupModule" ? "active" : "")" asp-controller="Security" asp-action="AddGroupModule">
-                            <i class="bi bi-diagram-3"></i> <span>Agregar módulo a grupo</span>
-                        </a>
+                        @* SecurityModule id 3 = "Agregar usuario", id 4 = "Modificar
+                           usuario" — Admin always has access, other groups need
+                           GroupHasAccessToModule for that specific id. Groups,
+                           módulos and group-módulo assignments have no
+                           SecurityModule of their own yet, so those stay
+                           Admin-only. *@
+                        @if (isAdmin || HasModuleId(3))
+                        {
+                            <a class="ag-nav-subitem @(currentAction == "AddUser" ? "active" : "")" asp-controller="Security" asp-action="AddUser">
+                                <i class="bi bi-person-plus"></i> <span>Agregar usuario</span>
+                            </a>
+                        }
+                        @if (isAdmin || HasModuleId(4))
+                        {
+                            <a class="ag-nav-subitem @(currentAction == "Users" || currentAction == "EditUser" ? "active" : "")" asp-controller="Security" asp-action="Users">
+                                <i class="bi bi-person-gear"></i> <span>Modificar usuario</span>
+                            </a>
+                        }
+                        @if (isAdmin)
+                        {
+                            <a class="ag-nav-subitem @(currentAction == "AddGroup" ? "active" : "")" asp-controller="Security" asp-action="AddGroup">
+                                <i class="bi bi-people"></i> <span>Agregar grupo</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentAction == "Groups" || currentAction == "EditGroup" ? "active" : "")" asp-controller="Security" asp-action="Groups">
+                                <i class="bi bi-people-fill"></i> <span>Modificar grupo</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentAction == "AddModule" ? "active" : "")" asp-controller="Security" asp-action="AddModule">
+                                <i class="bi bi-puzzle"></i> <span>Agregar módulo</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentAction == "Modules" || currentAction == "EditModule" ? "active" : "")" asp-controller="Security" asp-action="Modules">
+                                <i class="bi bi-puzzle-fill"></i> <span>Modificar módulo</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentAction == "AddGroupModule" ? "active" : "")" asp-controller="Security" asp-action="AddGroupModule">
+                                <i class="bi bi-diagram-3"></i> <span>Agregar módulo a grupo</span>
+                            </a>
+                        }
                     </div>
 
                     <div class="ag-nav-section">Cuenta</div>
@@ -84,16 +189,7 @@
                         <i class="bi bi-list"></i>
                     </button>
 
-                    <div class="ag-search">
-                        <i class="bi bi-search"></i>
-                        <input type="text" placeholder="Buscar solicitudes..." disabled />
-                    </div>
-
                     <div class="ag-topbar-actions">
-                        <button type="button" class="ag-icon-btn" title="Notificaciones"><i class="bi bi-bell"></i></button>
-                        <button type="button" class="ag-icon-btn" title="Tareas"><i class="bi bi-list-check"></i></button>
-                        <button type="button" class="ag-icon-btn" title="Mensajes"><i class="bi bi-envelope"></i></button>
-
                         <div class="ag-user">
                             <div class="ag-user-avatar">@agent?.Initials</div>
                             <div class="ag-user-info d-none d-sm-block">
@@ -113,8 +209,7 @@
                 </main>
 
                 <footer class="ag-footer">
-                    <span>CallCenterPlus &copy; 2026</span>
-                    <span>Gerencia de Tecnología</span>
+                    <span>CallCenterPlus &copy; 2026 Gerencia de Tecnología de la Información</span>
                 </footer>
             </div>
         </div>
@@ -208,9 +303,51 @@
                         settingsSubmenu.classList.toggle('is-open');
                     });
                 }
+
+                var requestsToggle = document.getElementById('agRequestsToggle');
+                var requestsSubmenu = document.getElementById('agRequestsSubmenu');
+                if (requestsToggle && requestsSubmenu) {
+                    requestsToggle.addEventListener('click', function () {
+                        requestsToggle.classList.toggle('is-expanded');
+                        requestsSubmenu.classList.toggle('is-open');
+                    });
+                }
+
+                var reportsToggle = document.getElementById('agReportsToggle');
+                var reportsSubmenu = document.getElementById('agReportsSubmenu');
+                if (reportsToggle && reportsSubmenu) {
+                    reportsToggle.addEventListener('click', function () {
+                        reportsToggle.classList.toggle('is-expanded');
+                        reportsSubmenu.classList.toggle('is-open');
+                    });
+                }
             })();
         </script>
     }
+
+    <script>
+        // Wires up every .ag-password-toggle button (login, change password,
+        // etc.) to flip its sibling input between password/text. Available on
+        // auth pages too, since it's outside the shell-only block above.
+        window.agSetupPasswordToggles = function (root) {
+            (root || document).querySelectorAll('.ag-password-toggle').forEach(function (btn) {
+                if (btn.dataset.agBound) return;
+                btn.dataset.agBound = '1';
+
+                btn.addEventListener('click', function () {
+                    var field = btn.closest('.ag-password-field');
+                    var input = field ? field.querySelector('input') : null;
+                    if (!input) return;
+
+                    var showing = input.type === 'text';
+                    input.type = showing ? 'password' : 'text';
+                    btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+                    btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
+                });
+            });
+        };
+        document.addEventListener('DOMContentLoaded', function () { agSetupPasswordToggles(); });
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)

@@ -8,6 +8,7 @@ public class AgentUser
 {
     public int SecurityUserId { get; set; }
     public int SecurityGroupId { get; set; }
+    public string UserName { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
 

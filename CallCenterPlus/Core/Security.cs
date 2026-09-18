@@ -154,11 +154,6 @@ namespace CallCenterPlus.Core
 			}
 		}
 
-		// NOTE: no stored procedure exists yet for this delete (only
-		// Security_GroupModuleAddOrEdit does), so this runs a plain
-		// parameterized DELETE against the join table directly. Swap this
-		// for a real SP call if/when one is added, to match the rest of
-		// this class's convention.
 		public int DeleteGroupModules(int securityGroupModuleId)
 		{
 			try
@@ -186,10 +181,6 @@ namespace CallCenterPlus.Core
 
 				SecurityUserViewModel user = new();
 
-				// Only the login identifies the row here — the stored password
-				// is encrypted, so it can't be matched directly in SQL. It's
-				// decrypted below and compared against the plain-text
-				// password the user typed in.
 				SqlCommand cmd = new("SELECT * FROM Security_GetValidUser WHERE UserName = @UserName", connection);
 				cmd.Parameters.AddWithValue("@UserName", login);
 
@@ -223,6 +214,54 @@ namespace CallCenterPlus.Core
 			{
 				throw new Exception("Error al obtener el usuario válido", ex);
 			}
+		}
+
+		public List<SecurityModuleModel> GetModulesByGroupId(int groupId)
+		{
+			using SqlConnection connection = _connectionFactory.CreateConnection();
+			connection.Open();
+
+			SqlCommand cmd = new("SELECT * FROM SecurityGroupModule WHERE SecurityGroupId = @SecurityGroupId ORDER BY SecurityGroupModule.SecurityModuleId", connection);
+			List<SecurityModuleModel> modules = new();
+
+			cmd.Parameters.AddWithValue("@SecurityGroupId", groupId);
+
+			using (SqlDataReader dr = cmd.ExecuteReader())
+			{
+				while (dr.Read())
+				{
+					modules.Add(new SecurityModuleModel
+					{
+						SecurityModuleId = (int)dr["SecurityModuleId"]
+					});
+				}
+			}
+
+			return modules.ToList();			
+		}
+
+		public List<SecurityModuleModel> GetAllModules()
+		{
+			using SqlConnection connection = _connectionFactory.CreateConnection();
+			connection.Open();
+
+			SqlCommand cmd = new("SELECT * FROM SecurityModule", connection);
+			List<SecurityModuleModel> modules = new();
+
+			using (SqlDataReader dr = cmd.ExecuteReader())
+			{
+				while (dr.Read())
+				{
+					modules.Add(new SecurityModuleModel
+					{
+						SecurityModuleId = (int)dr["SecurityModuleId"],
+						SecurityModuleName = (string)dr["SecurityModuleName"],
+						SecurityModuleDescription = (string)dr["SecurityModuleDescription"]
+					});
+				}
+			}
+
+			return modules.ToList();
 		}
 
 		public List<SecurityUserViewModel> GetAllUsers()
@@ -303,30 +342,6 @@ namespace CallCenterPlus.Core
 			}
 
 			return groups.ToList();
-		}
-
-		public List<SecurityModuleModel> GetAllModules()
-		{
-			using SqlConnection connection = _connectionFactory.CreateConnection();
-			connection.Open();
-
-			SqlCommand cmd = new("SELECT * FROM SecurityModule", connection);
-			List<SecurityModuleModel> modules = new();
-
-			using (SqlDataReader dr = cmd.ExecuteReader())
-			{
-				while (dr.Read())
-				{
-					modules.Add(new SecurityModuleModel
-					{
-						SecurityModuleId = (int)dr["SecurityModuleId"],
-						SecurityModuleName = (string)dr["SecurityModuleName"],
-						SecurityModuleDescription = (string)dr["SecurityModuleDescription"]
-					});
-				}
-			}
-
-			return modules.ToList();
 		}
 
 		public List<SecurityGroupModuleModel> GetAllGroupModules()
@@ -417,6 +432,28 @@ namespace CallCenterPlus.Core
 			return status.ToList();			
 		}
 
+		public bool GroupHasAccessToModule(int securityGroupId, int securityModuleId)
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM Security_GetUserGroupModuleAccess WHERE SecurityGroupId = @SecurityGroupId AND SecurityModuleId = @SecurityModuleId", connection);
+				cmd.Parameters.Add("@SecurityGroupId", SqlDbType.Int).Value = securityGroupId;
+				cmd.Parameters.Add("@SecurityModuleId", SqlDbType.Int).Value = securityModuleId;
+
+				using (SqlDataReader dr = cmd.ExecuteReader())
+				{
+					return dr.HasRows;
+				}	
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al verificar el acceso del módulo del grupo", ex);
+			}
+		}
+
 
 
 		public string? Encrypt(string plainText)
@@ -456,14 +493,14 @@ namespace CallCenterPlus.Core
 			}
 		}
 
-		public List<SecurityUserViewModel> GetAllAgents()
+		public List<SecurityUserViewModel> GetAgentsForTickets()
 		{
 			try
 			{
 				using SqlConnection connection = _connectionFactory.CreateConnection();
 				connection.Open();
 
-				SqlCommand cmd = new("SELECT * FROM Security_GetAllUsers WHERE SecurityGroupId = 2", connection);
+				SqlCommand cmd = new("SELECT * FROM Security_GetAgentForTickets", connection);
 
 				var list = new List<SecurityUserViewModel>();
 				using SqlDataReader reader = cmd.ExecuteReader();

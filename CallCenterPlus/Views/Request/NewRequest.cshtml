@@ -53,9 +53,9 @@
             <span asp-validation-for="RequestTypeId" class="cc-error"></span>
 
             <div class="cc-field" style="margin-top:26px;">
-                <label class="cc-label" id="descriptionLabel" for="Description">Detalles adicionales <span class="text-muted fw-normal">(opcional)</span></label>
+                <label class="cc-label" id="descriptionLabel" for="Description">Describe tu solicitud <span style="color:#d9364f">*</span></label>
                 <textarea class="cc-textarea" id="Description" name="Description" maxlength="600"
-                          placeholder="Agrega información que ayude a resolver tu solicitud más rápido...">@Model.Description</textarea>
+                          placeholder="Cuéntanos en detalle qué necesitas (mínimo 20 caracteres)...">@Model.Description</textarea>
                 <span asp-validation-for="Description" class="cc-error"></span>
             </div>
 
@@ -75,27 +75,13 @@
     <script>
         (function () {
             var cards = document.querySelectorAll('.cc-type-card');
-            var label = document.getElementById('descriptionLabel');
             var textarea = document.getElementById('Description');
             var nextButton = document.getElementById('nextButton');
-
-            function updateDescriptionUI() {
-                var selected = document.querySelector('.cc-type-card input[type=radio]:checked');
-                var isOther = selected && selected.closest('.cc-type-card').dataset.isOther === 'true';
-
-                if (isOther) {
-                    label.innerHTML = 'Describe tu solicitud <span style="color:#d9364f">*</span>';
-                    textarea.placeholder = 'Cuéntanos en detalle qué necesitas...';
-                } else {
-                    label.innerHTML = 'Detalles adicionales <span class="text-muted fw-normal">(opcional)</span>';
-                    textarea.placeholder = 'Agrega información que ayude a resolver tu solicitud más rápido...';
-                }
-            }
+            var minDescriptionLength = 20;
 
             function updateNextButton() {
                 var selected = document.querySelector('.cc-type-card input[type=radio]:checked');
-                var isOther = selected && selected.closest('.cc-type-card').dataset.isOther === 'true';
-                var isValid = !!selected && (!isOther || textarea.value.trim().length >= 10);
+                var isValid = !!selected && textarea.value.trim().length >= minDescriptionLength;
                 nextButton.disabled = !isValid;
             }
 
@@ -103,14 +89,12 @@
                 card.addEventListener('click', function () {
                     cards.forEach(function (c) { c.classList.remove('is-selected'); });
                     card.classList.add('is-selected');
-                    updateDescriptionUI();
                     updateNextButton();
                 });
             });
 
             textarea.addEventListener('input', updateNextButton);
 
-            updateDescriptionUI();
             updateNextButton();
         })();
     </script>

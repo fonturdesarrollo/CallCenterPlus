@@ -39,6 +39,11 @@
     }
     else
     {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="groupsSearchInput" class="ag-input" placeholder="Buscar por nombre o descripción..." />
+        </div>
+
         <div class="ag-table-wrap">
             <table class="ag-table">
                 <thead>
@@ -48,7 +53,7 @@
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="groupsTableBody">
                     @foreach (var group in Model)
                     {
                         <tr>
@@ -61,8 +66,105 @@
                             </td>
                         </tr>
                     }
+                    <tr id="groupsNoMatchRow" style="display:none;">
+                        <td colspan="3" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-search"></i>
+                            <p>No se encontraron grupos que coincidan con tu búsqueda.</p>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
+
+        <div class="ag-pagination" id="groupsPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="groupsPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="groupsPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="groupsNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var tableBody = document.getElementById('groupsTableBody');
+            if (!tableBody) return;
+
+            var searchInput = document.getElementById('groupsSearchInput');
+            var noMatchRow = document.getElementById('groupsNoMatchRow');
+            var pagination = document.getElementById('groupsPagination');
+            var pageInfo = document.getElementById('groupsPageInfo');
+            var prevButton = document.getElementById('groupsPrevPage');
+            var nextButton = document.getElementById('groupsNextPage');
+
+            var pageSize = 10;
+            var currentPage = 1;
+
+            var allRows = Array.prototype.slice.call(tableBody.querySelectorAll('tr'))
+                .filter(function (row) { return row !== noMatchRow; });
+
+            function getMatchingRows() {
+                var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                if (!term) return allRows;
+
+                return allRows.filter(function (row) {
+                    return row.textContent.toLowerCase().indexOf(term) !== -1;
+                });
+            }
+
+            function render() {
+                var matching = getMatchingRows();
+                var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                var start = (currentPage - 1) * pageSize;
+                var pageRows = matching.slice(start, start + pageSize);
+
+                allRows.forEach(function (row) { row.style.display = 'none'; });
+                pageRows.forEach(function (row) { row.style.display = ''; });
+
+                if (noMatchRow) {
+                    noMatchRow.style.display = matching.length === 0 ? '' : 'none';
+                }
+
+                if (pagination) {
+                    pagination.style.display = matching.length > pageSize ? '' : 'none';
+                }
+                if (pageInfo) {
+                    pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                }
+                if (prevButton) {
+                    prevButton.disabled = currentPage <= 1;
+                }
+                if (nextButton) {
+                    nextButton.disabled = currentPage >= totalPages;
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            }
+            if (prevButton) {
+                prevButton.addEventListener('click', function () {
+                    currentPage--;
+                    render();
+                });
+            }
+            if (nextButton) {
+                nextButton.addEventListener('click', function () {
+                    currentPage++;
+                    render();
+                });
+            }
+
+            render();
+        })();
+    </script>
+}

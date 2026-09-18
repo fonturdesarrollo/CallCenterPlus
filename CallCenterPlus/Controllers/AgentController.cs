@@ -1,4 +1,5 @@
 using System.Globalization;
+using CallCenterPlus.Authorization;
 using CallCenterPlus.Core;
 using CallCenterPlus.Extensions;
 using CallCenterPlus.Models;
@@ -12,6 +13,8 @@ public class AgentController : Controller
     private const string SessionAgentKey = "CurrentAgent";
     private const string TempDataSuccessKey = "TicketMovementSuccess";
     private const string TempDataErrorKey = "TicketMovementError";
+    private const int AdminGroupId = 1;
+    private const int AllStatusesModuleId = 2; // SecurityModule "Todos los estatus"
 
     private readonly IServiceAreas _serviceAreas;
     private readonly ITickets _tickets;
@@ -35,25 +38,32 @@ public class AgentController : Controller
             return;
         }
 
+        if (!ModuleAccessControl.HasAccess(context, agent, _security))
+        {
+            context.Result = RedirectToAction("AccessDenied");
+            return;
+        }
+
         ViewBag.CurrentAgent = agent;
 
         base.OnActionExecuting(context);
     }
 
-    // Real queued tickets, joined with the ServiceArea catalog for display names.
-    private List<PendingRequestRow> GetQueuedRequestRows(out bool loadFailed)
+    // Shared by the "En cola" / "En atención" tabs on Requests — same
+    // mapping, different source query.
+    private List<PendingRequestRow> GetRequestRows(Func<List<TicketViewModel>> fetch, string fetchName, out bool loadFailed)
     {
         loadFailed = false;
 
-        List<TicketViewModel> queued;
+        List<TicketViewModel> tickets;
         try
         {
-            queued = _tickets.GetByInQueue();
+            tickets = fetch();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener los tickets en cola (GetByInQueue)");
-            queued = new List<TicketViewModel>();
+            _logger.LogError(ex, "Error al obtener los tickets ({FetchName})", fetchName);
+            tickets = new List<TicketViewModel>();
             loadFailed = true;
         }
 
@@ -69,7 +79,7 @@ public class AgentController : Controller
             loadFailed = true;
         }
 
-        return queued
+        return tickets
             .Select(t =>
             {
                 categoryLookup.TryGetValue(t.ServiceAreaDetailId, out var detail);
@@ -81,81 +91,93 @@ public class AgentController : Controller
                     RequestTypeName = detail?.ServiceAreaDetailName ?? "No especificado",
                     TicketRemarks = string.IsNullOrWhiteSpace(t.TicketRemarks) ? "—" : t.TicketRemarks,
                     CreatedAt = t.TicketStartDate,
-                    Status = "En cola",
+                    Status = ResolveStatusLabel(t.TicketStatusId),
                 };
             })
-            .OrderByDescending(r => r.CreatedAt)
+            .OrderBy(r => r.TicketId)
             .ToList();
     }
 
-    // TODO: replace the remaining demo data below (KPIs, chart, categories)
-    // with real queries once those are ready. The pending-requests list
-    // below is already real (Ticket_Detail via ITickets.GetByInQueue()).
-    [HttpGet]
-    public IActionResult Dashboard()
+    private static string ResolveStatusLabel(int statusId) => statusId switch
     {
-        List<string> categoryNames;
+        1 => "En cola",
+        2 => "Técnico asignado",
+        3 => "Técnico trabajando",
+        4 => "Finalizado técnico",
+        5 => "Finalizado",
+        _ => "Desconocido",
+    };
+
+    // Group 1 (Admin) always has full access, same rule as ModuleAccessControl.
+    // Everyone else needs their group tied to the "Todos los estatus" module.
+    private bool HasFullStatusAccess(AgentUser? agent)
+    {
+        if (agent is null)
+        {
+            return false;
+        }
+
+        if (agent.SecurityGroupId == AdminGroupId)
+        {
+            return true;
+        }
+
         try
         {
-            categoryNames = _serviceAreas.GetAll()
-                .Select(s => s.ServiceAreaName)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Distinct()
-                .Take(3)
-                .Select(n => n!)
-                .ToList();
+            return _security.GroupHasAccessToModule(agent.SecurityGroupId, AllStatusesModuleId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener las categorías para el dashboard (ServiceAreas.GetAll)");
-            categoryNames = new List<string>();
+            _logger.LogError(ex, "Error al verificar el acceso a todos los estatus (Security.GroupHasAccessToModule) para el grupo {SecurityGroupId}", agent.SecurityGroupId);
+            return false;
         }
-
-        if (categoryNames.Count == 0)
-        {
-            categoryNames = new List<string> { "Soporte Técnico", "Redes", "Telefonía" };
-        }
-
-        var categoryIcons = new[] { "bi-pc-display", "bi-hdd-network", "bi-telephone" };
-        var categoryCounts = new[] { 42, 27, 15 };
-        var categoryPercentages = new[] { 47, 30, 17 };
-
-        var model = new AgentDashboardViewModel
-        {
-            Kpis = new List<AgentKpiCard>
-            {
-                new() { Label = "Solicitudes pendientes", Value = "18", TrendLabel = "12.4%", TrendUp = true,  ColorClass = "bg-agent-primary", Sparkline = new() { 8, 10, 9, 12, 14, 11, 13, 16, 18 } },
-                new() { Label = "En proceso",             Value = "7",  TrendLabel = "4.1%",  TrendUp = false, ColorClass = "bg-agent-info",    Sparkline = new() { 10, 9, 11, 8, 7, 9, 8, 7, 7 } },
-                new() { Label = "Resueltas hoy",          Value = "5",  TrendLabel = "25.0%", TrendUp = true,  ColorClass = "bg-agent-warning", Sparkline = new() { 2, 3, 2, 4, 3, 5, 4, 5, 5 } },
-                new() { Label = "Tiempo prom. (min)",     Value = "34", TrendLabel = "8.3%",  TrendUp = false, ColorClass = "bg-agent-danger",  Sparkline = new() { 46, 44, 41, 39, 40, 37, 36, 35, 34 } },
-            },
-            TopCategories = categoryNames.Select((name, i) => new CategoryBreakdown
-            {
-                Name = name,
-                Icon = categoryIcons[i % categoryIcons.Length],
-                Count = categoryCounts[i % categoryCounts.Length],
-                Percentage = categoryPercentages[i % categoryPercentages.Length],
-            }).ToList(),
-            PendingRequests = GetQueuedRequestRows(out var loadFailed),
-        };
-
-        ViewBag.LoadFailed = loadFailed;
-        return View(model);
     }
 
     [HttpGet]
-    public IActionResult Requests()
+    [RequireModule("Solicitudes")]
+    public IActionResult Requests(string view = "queue")
     {
-        var rows = GetQueuedRequestRows(out var loadFailed);
+        var normalizedView = view?.Trim().ToLowerInvariant() switch
+        {
+            "attention" => "attention",
+            "ended" => "ended",
+            _ => "queue",
+        };
+
+        List<PendingRequestRow> rows;
+        bool loadFailed;
+        switch (normalizedView)
+        {
+            case "attention":
+                rows = GetRequestRows(_tickets.GetByWithAgent, "GetByWithAgent", out loadFailed);
+                break;
+            case "ended":
+                rows = GetRequestRows(_tickets.GetByEnded, "GetByEnded", out loadFailed);
+                break;
+            default:
+                rows = GetRequestRows(_tickets.GetByInQueue, "GetByInQueue", out loadFailed);
+                break;
+        }
+
         ViewBag.LoadFailed = loadFailed;
+        ViewBag.CurrentView = normalizedView;
         return View(rows);
+    }
+
+    [HttpGet]
+    public IActionResult AccessDenied()
+    {
+        return View();
     }
 
     // "Tomar ticket": full ticket data + agent/status assignment + movement
     // history.
     [HttpGet]
-    public IActionResult TicketDetail(int id)
+    [RequireModule("Solicitudes")]
+    public IActionResult TicketDetail(int id, string view = "queue")
     {
+        ViewBag.ReturnView = view;
+
         List<TicketViewModel> matches;
         try
         {
@@ -164,13 +186,13 @@ public class AgentController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al obtener el ticket {TicketId} (GetById)", id);
-            return RedirectToAction("Requests");
+            return RedirectToAction("Requests", new { view });
         }
 
         var ticket = matches.FirstOrDefault();
         if (ticket is null)
         {
-            return RedirectToAction("Requests");
+            return RedirectToAction("Requests", new { view });
         }
 
         var loadFailed = false;
@@ -193,23 +215,42 @@ public class AgentController : Controller
         List<SecurityUserViewModel> agents;
         try
         {
-            agents = _security.GetAllAgents();
+            agents = _security.GetAgentsForTickets();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener los agentes (Security.GetAllAgents) para el ticket {TicketId}", id);
+            _logger.LogError(ex, "Error al obtener los agentes (Security.GetAgentsForTickets) para el ticket {TicketId}", id);
             agents = new List<SecurityUserViewModel>();
             loadFailed = true;
         }
 
-        List<TicketStatus> statuses;
+        // TicketDetail_Detail (behind GetDetailByTicketId) doesn't expose the
+        // technician's SecurityUserId, only their FullName — so movements
+        // read via that view always come back with SecurityUserId 0. Resolve
+        // the real id by name against the full user list instead.
+        List<SecurityUserViewModel> allUsers;
         try
         {
-            statuses = _tickets.GetStatusForAgent();
+            allUsers = _security.GetAllUsers();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener los estatus (Tickets.GetStatusForAgent) para el ticket {TicketId}", id);
+            _logger.LogError(ex, "Error al obtener los usuarios (Security.GetAllUsers) para el ticket {TicketId}", id);
+            allUsers = new List<SecurityUserViewModel>();
+            loadFailed = true;
+        }
+
+        var currentAgent = HttpContext.Session.GetObject<AgentUser>(SessionAgentKey);
+        var hasFullStatusAccess = HasFullStatusAccess(currentAgent);
+
+        List<TicketStatus> statuses;
+        try
+        {
+            statuses = hasFullStatusAccess ? _tickets.GetStatusForSupervisor() : _tickets.GetStatusForAgent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener los estatus ({Fetch}) para el ticket {TicketId}", hasFullStatusAccess ? "GetStatusForSupervisor" : "GetStatusForAgent", id);
             statuses = new List<TicketStatus>();
             loadFailed = true;
         }
@@ -235,10 +276,35 @@ public class AgentController : Controller
             ticket.TicketStatusId = latestMovement.TicketStatusId;
         }
 
+        // The combo only comes from "Agentes" (GetAgentsForTickets), so an
+        // already-assigned agent or the logged-in agent might not literally
+        // be a member of that group — make sure both are still real,
+        // selectable options so the combo can actually show them selected.
+        void EnsureAgentOption(int securityUserId, string? fullName)
+        {
+            if (securityUserId > 0 && !agents.Any(a => a.SecurityUserId == securityUserId))
+            {
+                agents.Add(new SecurityUserViewModel
+                {
+                    SecurityUserId = securityUserId,
+                    FullName = fullName,
+                });
+            }
+        }
+
+        var latestMovementAgentId = latestMovement is null ? 0 : ResolveAgentIdByName(latestMovement.FullName, allUsers);
+        if (latestMovementAgentId > 0)
+        {
+            EnsureAgentOption(latestMovementAgentId, latestMovement!.FullName);
+        }
+        if (currentAgent is not null)
+        {
+            EnsureAgentOption(currentAgent.SecurityUserId, currentAgent.FullName);
+        }
+
         // Once a movement exists, it already records the real assigned agent;
         // otherwise default to whichever agent is logged in and taking it.
-        var currentAgent = HttpContext.Session.GetObject<AgentUser>(SessionAgentKey);
-        var defaultAgentId = latestMovement?.SecurityUserId
+        var defaultAgentId = (latestMovementAgentId > 0 ? latestMovementAgentId : (int?)null)
             ?? currentAgent?.SecurityUserId
             ?? agents.FirstOrDefault()?.SecurityUserId
             ?? 0;
@@ -271,7 +337,8 @@ public class AgentController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult SaveMovement(TicketMovementInputModel input)
+    [RequireModule("Solicitudes")]
+    public IActionResult SaveMovement(TicketMovementInputModel input, string view = "queue")
     {
         List<TicketViewModel> matches;
         try
@@ -281,34 +348,40 @@ public class AgentController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al obtener el ticket {TicketId} antes de guardar el movimiento (GetById)", input.TicketId);
-            return RedirectToAction("Requests");
+            return RedirectToAction("Requests", new { view });
         }
 
         var ticket = matches.FirstOrDefault();
         if (ticket is null)
         {
-            return RedirectToAction("Requests");
+            return RedirectToAction("Requests", new { view });
         }
 
-        List<SecurityUserViewModel> agents;
+        // Group-agnostic list (not just "Agentes") so the newly selected agent
+        // can be resolved by name even if they're not in that group — the
+        // combo can now select agents from any group (see TicketDetail GET).
+        List<SecurityUserViewModel> allUsers;
         try
         {
-            agents = _security.GetAllAgents();
+            allUsers = _security.GetAllUsers();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener los agentes (Security.GetAllAgents) al guardar el movimiento del ticket {TicketId}", input.TicketId);
-            agents = new List<SecurityUserViewModel>();
+            _logger.LogError(ex, "Error al obtener los usuarios (Security.GetAllUsers) al guardar el movimiento del ticket {TicketId}", input.TicketId);
+            allUsers = new List<SecurityUserViewModel>();
         }
+
+        var currentAgent = HttpContext.Session.GetObject<AgentUser>(SessionAgentKey);
+        var hasFullStatusAccess = HasFullStatusAccess(currentAgent);
 
         List<TicketStatus> statuses;
         try
         {
-            statuses = _tickets.GetStatusForAgent();
+            statuses = hasFullStatusAccess ? _tickets.GetStatusForSupervisor() : _tickets.GetStatusForAgent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener los estatus (Tickets.GetStatusForAgent) al guardar el movimiento del ticket {TicketId}", input.TicketId);
+            _logger.LogError(ex, "Error al obtener los estatus ({Fetch}) al guardar el movimiento del ticket {TicketId}", hasFullStatusAccess ? "GetStatusForSupervisor" : "GetStatusForAgent", input.TicketId);
             statuses = new List<TicketStatus>();
         }
 
@@ -326,11 +399,16 @@ public class AgentController : Controller
         var previousMovement = movements.FirstOrDefault();
         var previousStatusId = previousMovement?.TicketStatusId ?? ticket.TicketStatusId;
 
-        var currentAgent = HttpContext.Session.GetObject<AgentUser>(SessionAgentKey);
         var actorName = FormatDisplayName(currentAgent?.FullName) ?? "Un agente";
 
-        var newAgentName = FormatDisplayName(agents.FirstOrDefault(a => a.SecurityUserId == input.AgentId)?.FullName) ?? "un agente";
+        var newAgentName = FormatDisplayName(allUsers.FirstOrDefault(a => a.SecurityUserId == input.AgentId)?.FullName) ?? "un agente";
         var previousAgentName = FormatDisplayName(previousMovement?.FullName);
+
+        // TicketDetail_Detail doesn't expose SecurityUserId, only FullName —
+        // resolve the previous agent's real id by name to correctly detect
+        // whether the agent actually changed (see also TicketDetail GET).
+        var previousAgentIdResolved = previousMovement is null ? 0 : ResolveAgentIdByName(previousMovement.FullName, allUsers);
+        int? previousAgentId = previousAgentIdResolved > 0 ? previousAgentIdResolved : null;
 
         var newStatusName = ResolveStatusName(input.StatusId, statuses);
 
@@ -339,7 +417,7 @@ public class AgentController : Controller
 
         var description = BuildProcessDescription(
             actorName,
-            previousMovement?.SecurityUserId,
+            previousAgentId,
             previousAgentName,
             input.AgentId,
             newAgentName,
@@ -372,7 +450,21 @@ public class AgentController : Controller
             TempData[TempDataErrorKey] = $"No se pudo guardar el movimiento: {ex.Message}";
         }
 
-        return RedirectToAction("TicketDetail", new { id = input.TicketId });
+        return RedirectToAction("TicketDetail", new { id = input.TicketId, view });
+    }
+
+    // TicketDetail_Detail only exposes the technician's FullName, not their
+    // SecurityUserId, so movements are matched back to a real user by name.
+    private static int ResolveAgentIdByName(string? fullName, List<SecurityUserViewModel> allUsers)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return 0;
+        }
+
+        return allUsers
+            .FirstOrDefault(u => string.Equals(u.FullName?.Trim(), fullName.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?.SecurityUserId ?? 0;
     }
 
     // Presentable version of a raw (often ALL CAPS) name/status from the DB.

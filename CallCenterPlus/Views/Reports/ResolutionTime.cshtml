@@ -1,0 +1,124 @@
+@model CallCenterPlus.Models.AgentResolutionTimeViewModel
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+@if (ViewBag.LoadFailed == true)
+{
+    <div class="ag-alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>No pudimos cargar algunos datos (movimientos de tickets). Los totales mostrados pueden estar incompletos.</span>
+    </div>
+}
+
+<div class="ag-card">
+    <div class="ag-metrics-row" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+        <div class="ag-metric ag-metric-primary">
+            <div class="ag-metric-label">Tickets finalizados con tiempo registrado</div>
+            <div class="ag-metric-value">@Model.TotalResolved</div>
+        </div>
+        <div class="ag-metric ag-metric-info">
+            <div class="ag-metric-label">Promedio general</div>
+            <div class="ag-metric-value">@Model.OverallAverageMinutes.ToString("0") min</div>
+        </div>
+        <div class="ag-metric ag-metric-warning">
+            <div class="ag-metric-label">Agente más rápido</div>
+            <div class="ag-metric-value">@(Model.ByAgent.FirstOrDefault()?.AgentName ?? "—")</div>
+        </div>
+    </div>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Tiempo promedio de resolución por agente</h2>
+            <p>Minutos invertidos, según lo registrado al finalizar cada ticket</p>
+        </div>
+    </div>
+
+    @if (!Model.ByAgent.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-bar-chart"></i>
+            <p>Todavía no hay tickets finalizados con minutos registrados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-chart-wrap" style="height: @(Math.Max(220, Model.ByAgent.Count * 46))px;">
+            <canvas id="agentResolutionChart"></canvas>
+        </div>
+
+        <div class="ag-table-wrap" style="margin-top: 18px;">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Agente</th>
+                        <th>Tickets resueltos</th>
+                        <th>Promedio</th>
+                        <th>Mínimo</th>
+                        <th>Máximo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var agent in Model.ByAgent)
+                    {
+                        <tr>
+                            <td>@agent.AgentName</td>
+                            <td>@agent.ResolvedCount</td>
+                            <td>@agent.AverageMinutes min</td>
+                            <td>@agent.MinMinutes min</td>
+                            <td>@agent.MaxMinutes min</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var canvas = document.getElementById('agentResolutionChart');
+            if (!canvas) { return; }
+
+            var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByAgent.Select(a => a.AgentName)));
+            var averages = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByAgent.Select(a => a.AverageMinutes)));
+            var counts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByAgent.Select(a => a.ResolvedCount)));
+
+            var ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: averages,
+                        backgroundColor: '#4b3fd6',
+                        borderRadius: 4,
+                        maxBarThickness: 28,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (item) {
+                                    return item.parsed.x + ' min promedio (' + counts[item.dataIndex] + ' tickets)';
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eceff2' } },
+                        y: { grid: { display: false } },
+                    },
+                },
+            });
+        })();
+    </script>
+}

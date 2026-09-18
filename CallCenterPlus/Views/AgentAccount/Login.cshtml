@@ -27,7 +27,12 @@
 
             <div class="ag-field">
                 <label asp-for="Password">Contraseña</label>
-                <input asp-for="Password" type="password" class="ag-input" placeholder="••••••••" autocomplete="off" />
+                <div class="ag-password-field">
+                    <input asp-for="Password" type="password" class="ag-input" placeholder="••••••••" autocomplete="off" />
+                    <button type="button" class="ag-password-toggle" aria-label="Mostrar contraseña">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
                 <span asp-validation-for="Password" class="ag-error"></span>
             </div>
 

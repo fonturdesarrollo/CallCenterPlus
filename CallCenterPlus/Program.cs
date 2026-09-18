@@ -1,5 +1,6 @@
 using CallCenterPlus.Core;
 using CallCenterPlus.Core.Data;
+using CallCenterPlus.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +27,7 @@ builder.Services.AddScoped<ITickets, Tickets>();
 builder.Services.AddScoped<IGeography, Geography>();
 builder.Services.AddScoped<ISecurity, Security>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
@@ -52,6 +54,8 @@ app.UseStaticFiles();
 app.MapControllerRoute(
 	name: "default",
 	pattern: "{controller=Account}/{action=Login}/{id?}");
+
+app.MapHub<TicketsHub>("/hubs/tickets");
 
 
 app.Run();

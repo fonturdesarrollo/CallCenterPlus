@@ -1,0 +1,184 @@
+@model CallCenterPlus.Models.TicketVolumeReportViewModel
+@{
+    ViewData["Title"] = "Reportes";
+
+    string FillClass(int statusId) => statusId switch
+    {
+        1 => "ag-status-fill-info",
+        2 => "ag-status-fill-primary",
+        3 => "ag-status-fill-warning",
+        _ => "ag-status-fill-success",
+    };
+
+    string IconClass(int statusId) => statusId switch
+    {
+        1 => "bi-hourglass-split",
+        2 => "bi-person-check",
+        3 => "bi-gear",
+        4 => "bi-check2-circle",
+        _ => "bi-check-circle-fill",
+    };
+}
+
+@if (ViewBag.LoadFailed == true)
+{
+    <div class="ag-alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>No pudimos cargar algunos datos (tickets o catálogo de categorías). Los totales mostrados pueden estar incompletos.</span>
+    </div>
+}
+
+<div class="ag-card">
+    <div class="ag-metrics-row" style="grid-template-columns: repeat(4, 1fr); margin-top: 0;">
+        <div class="ag-metric ag-metric-primary">
+            <div class="ag-metric-label">Total de solicitudes</div>
+            <div class="ag-metric-value">@Model.TotalTickets</div>
+        </div>
+        <div class="ag-metric ag-metric-info">
+            <div class="ag-metric-label">Categoría con más volumen</div>
+            <div class="ag-metric-value">@(Model.ByCategory.FirstOrDefault()?.Name ?? "—")</div>
+        </div>
+        <div class="ag-metric ag-metric-warning">
+            <div class="ag-metric-label">Estatus con más volumen</div>
+            <div class="ag-metric-value">@(Model.ByStatus.OrderByDescending(s => s.Count).FirstOrDefault()?.Name ?? "—")</div>
+        </div>
+        <div class="ag-metric ag-metric-success">
+            <div class="ag-metric-label">Departamento con más volumen</div>
+            <div class="ag-metric-value">@(Model.ByDepartment.FirstOrDefault()?.Name ?? "—")</div>
+        </div>
+    </div>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Solicitudes por categoría</h2>
+            <p>Volumen histórico, todas las solicitudes registradas</p>
+        </div>
+    </div>
+
+    @if (!Model.ByCategory.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-bar-chart"></i>
+            <p>No hay solicitudes registradas todavía.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-chart-wrap" style="height: @(Math.Max(220, Model.ByCategory.Count * 46))px;">
+            <canvas id="categoryVolumeChart"></canvas>
+        </div>
+    }
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Solicitudes por estatus</h2>
+            <p>Distribución actual de todas las solicitudes</p>
+        </div>
+    </div>
+
+    @if (Model.TotalTickets == 0)
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-pie-chart"></i>
+            <p>No hay solicitudes registradas todavía.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-status-list">
+            @foreach (var status in Model.ByStatus)
+            {
+                <div class="ag-status-row">
+                    <i class="bi @IconClass(status.StatusId) ag-status-icon"></i>
+                    <span class="ag-status-name">@status.Name</span>
+                    <span class="ag-status-count">@status.Count (@status.Percentage%)</span>
+                </div>
+                <div class="ag-status-progress"><div class="ag-status-progress-fill @FillClass(status.StatusId)" style="width:@(status.Percentage)%"></div></div>
+            }
+        </div>
+    }
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Solicitudes por departamento</h2>
+            <p>Qué gerencias generan más solicitudes</p>
+        </div>
+    </div>
+
+    @if (!Model.ByDepartment.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-bar-chart"></i>
+            <p>No hay solicitudes registradas todavía.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-chart-wrap" style="height: @(Math.Max(220, Model.ByDepartment.Count * 46))px;">
+            <canvas id="departmentVolumeChart"></canvas>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            function renderVolumeChart(canvasId, names, counts, percentages, color) {
+                var canvas = document.getElementById(canvasId);
+                if (!canvas) { return; }
+
+                new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: names,
+                        datasets: [{
+                            data: counts,
+                            backgroundColor: color,
+                            borderRadius: 4,
+                            maxBarThickness: 28,
+                        }],
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (item) {
+                                        return item.parsed.x + ' solicitudes (' + percentages[item.dataIndex] + '%)';
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eceff2' } },
+                            y: { grid: { display: false } },
+                        },
+                    },
+                });
+            }
+
+            renderVolumeChart(
+                'categoryVolumeChart',
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Name))),
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Count))),
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Percentage))),
+                '#4b3fd6');
+
+            renderVolumeChart(
+                'departmentVolumeChart',
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByDepartment.Select(c => c.Name))),
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByDepartment.Select(c => c.Count))),
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByDepartment.Select(c => c.Percentage))),
+                '#3399ff');
+        })();
+    </script>
+}

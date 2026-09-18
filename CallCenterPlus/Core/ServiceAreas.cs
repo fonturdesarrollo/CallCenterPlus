@@ -21,7 +21,7 @@ namespace CallCenterPlus.Core
 				using SqlConnection connection = _connectionFactory.CreateConnection();
 				connection.Open();
 
-				SqlCommand cmd = new("SELECT * FROM ServiceArea_Detail", connection)
+				SqlCommand cmd = new("SELECT * FROM ServiceArea_Detail ORDER BY ServiceAreaId, ServiceAreaDetailName", connection)
 				{
 					CommandType = CommandType.Text
 				};

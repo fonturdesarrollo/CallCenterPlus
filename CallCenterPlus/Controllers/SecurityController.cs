@@ -1,3 +1,4 @@
+using CallCenterPlus.Authorization;
 using CallCenterPlus.Core;
 using CallCenterPlus.Extensions;
 using CallCenterPlus.Models;
@@ -6,15 +7,22 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace CallCenterPlus.Controllers;
 
+// Group 1 (Admin) always has full access to every action here, via
+// ModuleAccessControl. Non-admins can reach AddUser/Users/EditUser if their
+// group has SecurityModule id 3/4 respectively; everything else (groups,
+// modules, group-module assignments) stays Admin-only.
 public class SecurityController : Controller
 {
     private const string SessionAgentKey = "CurrentAgent";
     private const string TempDataSuccessKey = "SecuritySuccessMessage";
     private const string TempDataErrorKey = "SecurityErrorMessage";
+    private const int AdminGroupId = 1;
 
     private readonly ISecurity _security;
     private readonly IGeography _geography;
     private readonly ILogger<SecurityController> _logger;
+
+    private AgentUser? CurrentAgent { get; set; }
 
     public SecurityController(ISecurity security, IGeography geography, ILogger<SecurityController> logger)
     {
@@ -32,7 +40,14 @@ public class SecurityController : Controller
             return;
         }
 
+        if (!ModuleAccessControl.HasAccess(context, agent, _security))
+        {
+            context.Result = RedirectToAction("AccessDenied", "Agent");
+            return;
+        }
+
         ViewBag.CurrentAgent = agent;
+        CurrentAgent = agent;
 
         base.OnActionExecuting(context);
     }
@@ -91,6 +106,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [RequireModuleId(3)]
     public IActionResult AddUser()
     {
         var model = new AddSecurityUserViewModel();
@@ -106,6 +122,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequireModuleId(3)]
     public IActionResult AddUser(AddSecurityUserViewModel model)
     {
         model.User.SecurityUserId = 0;
@@ -140,6 +157,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult AddGroup()
     {
         var model = new SecurityGroupModel();
@@ -154,6 +172,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult AddGroup(SecurityGroupModel model)
     {
         model.SecurityGroupId = 0;
@@ -179,6 +198,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult AddModule()
     {
         var model = new SecurityModuleModel();
@@ -193,6 +213,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult AddModule(SecurityModuleModel model)
     {
         model.SecurityModuleId = 0;
@@ -218,6 +239,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult AddGroupModule()
     {
         var model = BuildAddGroupModuleViewModel();
@@ -237,6 +259,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult AddGroupModule(SecurityGroupModuleModel assignment)
     {
         assignment.SecurityGroupModuleId = 0;
@@ -299,6 +322,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult DeleteGroupModule(int id)
     {
         try
@@ -316,6 +340,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [RequireModuleId(4)]
     public IActionResult Users()
     {
         List<SecurityUserViewModel> users;
@@ -331,6 +356,12 @@ public class SecurityController : Controller
             loadFailed = true;
         }
 
+        // Only Admin (group 1) can see other Admin accounts in this list.
+        if (CurrentAgent?.SecurityGroupId != AdminGroupId)
+        {
+            users = users.Where(u => u.SecurityGroupId != AdminGroupId).ToList();
+        }
+
         ViewBag.LoadFailed = loadFailed;
 
         if (TempData[TempDataSuccessKey] is string successMessage)
@@ -342,6 +373,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult Groups()
     {
         List<SecurityGroupModel> groups;
@@ -368,6 +400,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult EditGroup(int id)
     {
         var group = _security.GetAllGroups().FirstOrDefault(g => g.SecurityGroupId == id);
@@ -381,6 +414,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult EditGroup(SecurityGroupModel model)
     {
         if (model.SecurityGroupId <= 0)
@@ -409,6 +443,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult Modules()
     {
         List<SecurityModuleModel> modules;
@@ -435,6 +470,7 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [AdminOnly]
     public IActionResult EditModule(int id)
     {
         var module = _security.GetAllModules().FirstOrDefault(m => m.SecurityModuleId == id);
@@ -448,6 +484,7 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [AdminOnly]
     public IActionResult EditModule(SecurityModuleModel model)
     {
         if (model.SecurityModuleId <= 0)
@@ -476,10 +513,17 @@ public class SecurityController : Controller
     }
 
     [HttpGet]
+    [RequireModuleId(4)]
     public IActionResult EditUser(int id)
     {
         var user = _security.GetAllUsers().FirstOrDefault(u => u.SecurityUserId == id);
         if (user is null)
+        {
+            return RedirectToAction("Users");
+        }
+
+        // Non-admins can't edit Admin accounts, even by navigating here directly.
+        if (user.SecurityGroupId == AdminGroupId && CurrentAgent?.SecurityGroupId != AdminGroupId)
         {
             return RedirectToAction("Users");
         }
@@ -495,9 +539,18 @@ public class SecurityController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequireModuleId(4)]
     public IActionResult EditUser(AddSecurityUserViewModel model)
     {
         if (model.User.SecurityUserId <= 0)
+        {
+            return RedirectToAction("Users");
+        }
+
+        // Non-admins can't edit Admin accounts. Checked against the existing
+        // stored record, not the submitted form value, since that's attacker-controlled.
+        var existingUser = _security.GetAllUsers().FirstOrDefault(u => u.SecurityUserId == model.User.SecurityUserId);
+        if (existingUser is null || (existingUser.SecurityGroupId == AdminGroupId && CurrentAgent?.SecurityGroupId != AdminGroupId))
         {
             return RedirectToAction("Users");
         }

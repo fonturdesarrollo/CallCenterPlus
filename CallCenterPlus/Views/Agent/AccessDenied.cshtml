@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Acceso denegado";
+}
+
+<div class="ag-card ag-card-narrow" style="text-align:center;">
+    <div style="font-size:3rem; color:var(--ag-danger); margin-bottom:12px;">
+        <i class="bi bi-shield-lock"></i>
+    </div>
+    <h2>Acceso denegado</h2>
+    <p style="color:var(--ag-text-muted);">No tienes permiso para acceder a esta sección. Si crees que esto es un error, contacta a un administrador.</p>
+    <div class="ag-form-actions" style="justify-content:center;">
+        <a class="ag-btn ag-btn-outline" asp-controller="AgentAccount" asp-action="Logout">Cerrar sesión</a>
+    </div>
+</div>

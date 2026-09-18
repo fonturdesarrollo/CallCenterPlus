@@ -1,0 +1,243 @@
+@model CallCenterPlus.Models.ReopenedTicketsReportViewModel
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+@if (ViewBag.LoadFailed == true)
+{
+    <div class="ag-alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>No pudimos cargar algunos datos (tickets o movimientos). Los totales mostrados pueden estar incompletos.</span>
+    </div>
+}
+
+<div class="ag-card">
+    <div class="ag-metrics-row" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+        <div class="ag-metric ag-metric-primary">
+            <div class="ag-metric-label">Reaperturas registradas</div>
+            <div class="ag-metric-value">@Model.TotalReopenEvents</div>
+        </div>
+        <div class="ag-metric ag-metric-info">
+            <div class="ag-metric-label">Tickets reabiertos (únicos)</div>
+            <div class="ag-metric-value">@Model.TotalReopenedTickets</div>
+        </div>
+        <div class="ag-metric ag-metric-warning">
+            <div class="ag-metric-label">Tasa de reapertura</div>
+            <div class="ag-metric-value">@Model.ReopenRatePercentage% <span style="font-weight:400; font-size:.78rem; color:var(--ag-text-muted);">de @Model.TotalTickets tickets</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Reaperturas por categoría</h2>
+            <p>Qué tipo de solicitudes se reabren con más frecuencia</p>
+        </div>
+    </div>
+
+    @if (!Model.ByCategory.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-arrow-repeat"></i>
+            <p>No se han reabierto solicitudes todavía.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-chart-wrap" style="height: @(Math.Max(220, Model.ByCategory.Count * 46))px;">
+            <canvas id="reopenedCategoryChart"></canvas>
+        </div>
+    }
+</div>
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Detalle de reaperturas</h2>
+            <p>Cada vez que un empleado reabrió una solicitud, con la observación indicada</p>
+        </div>
+    </div>
+
+    @if (!Model.Rows.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-arrow-repeat"></i>
+            <p>No se han reabierto solicitudes todavía.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="reopenedSearchInput" class="ag-input" placeholder="Buscar por ticket, empleado, categoría, agente u observación..." />
+        </div>
+
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Empleado</th>
+                        <th>Categoría</th>
+                        <th>Fecha de reapertura</th>
+                        <th>Agente anterior</th>
+                        <th>Observación</th>
+                    </tr>
+                </thead>
+                <tbody id="reopenedTableBody">
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>#@row.TicketId</td>
+                            <td>
+                                <div class="ag-table-user-name">@row.EmployeeName</div>
+                                <div class="ag-table-user-dept">@row.Department</div>
+                            </td>
+                            <td>@row.Category</td>
+                            <td>@row.ReopenedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
+                            <td>@row.PreviousAgentName</td>
+                            <td class="ag-table-remarks" title="@row.Observation">@row.Observation</td>
+                        </tr>
+                    }
+                    <tr id="reopenedNoMatchRow" style="display:none;">
+                        <td colspan="6" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-search"></i>
+                            <p>No se encontraron reaperturas que coincidan con tu búsqueda.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ag-pagination" id="reopenedPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="reopenedPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="reopenedPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="reopenedNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var canvas = document.getElementById('reopenedCategoryChart');
+            if (canvas) {
+                var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Name)));
+                var counts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Count)));
+                var percentages = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ByCategory.Select(c => c.Percentage)));
+
+                new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: counts,
+                            backgroundColor: '#f9b115',
+                            borderRadius: 4,
+                            maxBarThickness: 28,
+                        }],
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (item) {
+                                        return item.parsed.x + ' reaperturas (' + percentages[item.dataIndex] + '%)';
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eceff2' } },
+                            y: { grid: { display: false } },
+                        },
+                    },
+                });
+            }
+
+            var tableBody = document.getElementById('reopenedTableBody');
+            if (!tableBody) return;
+
+            var searchInput = document.getElementById('reopenedSearchInput');
+            var noMatchRow = document.getElementById('reopenedNoMatchRow');
+            var pagination = document.getElementById('reopenedPagination');
+            var pageInfo = document.getElementById('reopenedPageInfo');
+            var prevButton = document.getElementById('reopenedPrevPage');
+            var nextButton = document.getElementById('reopenedNextPage');
+
+            var pageSize = 10;
+            var currentPage = 1;
+
+            var allRows = Array.prototype.slice.call(tableBody.querySelectorAll('tr'))
+                .filter(function (row) { return row !== noMatchRow; });
+
+            function getMatchingRows() {
+                var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                if (!term) return allRows;
+
+                return allRows.filter(function (row) {
+                    return row.textContent.toLowerCase().indexOf(term) !== -1;
+                });
+            }
+
+            function render() {
+                var matching = getMatchingRows();
+                var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                var start = (currentPage - 1) * pageSize;
+                var pageRows = matching.slice(start, start + pageSize);
+
+                allRows.forEach(function (row) { row.style.display = 'none'; });
+                pageRows.forEach(function (row) { row.style.display = ''; });
+
+                if (noMatchRow) {
+                    noMatchRow.style.display = matching.length === 0 ? '' : 'none';
+                }
+
+                if (pagination) {
+                    pagination.style.display = matching.length > pageSize ? '' : 'none';
+                }
+                if (pageInfo) {
+                    pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                }
+                if (prevButton) {
+                    prevButton.disabled = currentPage <= 1;
+                }
+                if (nextButton) {
+                    nextButton.disabled = currentPage >= totalPages;
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            }
+            if (prevButton) {
+                prevButton.addEventListener('click', function () {
+                    currentPage--;
+                    render();
+                });
+            }
+            if (nextButton) {
+                nextButton.addEventListener('click', function () {
+                    currentPage++;
+                    render();
+                });
+            }
+
+            render();
+        })();
+    </script>
+}

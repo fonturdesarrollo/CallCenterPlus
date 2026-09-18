@@ -1,0 +1,49 @@
+@model CallCenterPlus.Models.ReopenTicketInputModel
+@{
+    ViewData["Title"] = "Reabrir solicitud";
+}
+
+<div class="cc-wrap">
+    <div class="cc-card">
+        <a asp-controller="Request" asp-action="TicketDetail" asp-route-id="@Model.TicketId" class="cc-btn cc-btn-outline" style="padding:10px 16px; margin-bottom:22px;">
+            <i class="bi bi-arrow-left"></i> Volver a la solicitud
+        </a>
+
+        <h1 class="cc-page-title" style="text-align:left; margin-bottom:2px;">Reabrir solicitud #@Model.TicketId</h1>
+        <p class="cc-page-subtitle" style="text-align:left; margin-bottom:0;">@Model.RequestTypeName · Estatus actual: @Model.StatusName</p>
+
+        @if (ViewBag.SubmitError is not null)
+        {
+            <div class="cc-alert-note" style="background:var(--cc-warning-light); color:#a5680a; margin-top:18px;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>@ViewBag.SubmitError</span>
+            </div>
+        }
+
+        <div class="cc-alert-note" style="margin-top:18px;">
+            <i class="bi bi-info-circle"></i>
+            <span>Tu solicitud volverá a quedar en cola para que un técnico la atienda de nuevo.</span>
+        </div>
+
+        <form asp-controller="Request" asp-action="ReopenTicket" method="post" style="margin-top:22px;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="TicketId" />
+
+            <div class="cc-field">
+                <label class="cc-label" for="Observaciones">¿Por qué quieres reabrir esta solicitud?</label>
+                <textarea class="cc-textarea" id="Observaciones" name="Observaciones" maxlength="600"
+                          placeholder="Cuéntanos qué falta o qué no se resolvió...">@Model.Observaciones</textarea>
+                <span asp-validation-for="Observaciones" class="cc-error"></span>
+            </div>
+
+            <div class="cc-actions">
+                <a class="cc-btn cc-btn-outline" asp-controller="Request" asp-action="TicketDetail" asp-route-id="@Model.TicketId">
+                    Cancelar
+                </a>
+                <button type="submit" class="cc-btn cc-btn-primary">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reabrir solicitud
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

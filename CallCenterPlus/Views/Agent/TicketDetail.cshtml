@@ -27,7 +27,7 @@
     <div class="ag-card">
         <div class="ag-card-header">
             <div>
-                <a class="ag-btn ag-btn-outline ag-btn-xs" asp-controller="Agent" asp-action="Requests" style="margin-bottom:12px;">
+                <a class="ag-btn ag-btn-outline ag-btn-xs" asp-controller="Agent" asp-action="Requests" asp-route-view="@ViewBag.ReturnView" style="margin-bottom:12px;">
                     <i class="bi bi-arrow-left"></i> Volver a solicitudes
                 </a>
                 <h2>Asignación</h2>
@@ -54,6 +54,7 @@
         <form asp-controller="Agent" asp-action="SaveMovement" method="post" id="movementForm">
             @Html.AntiForgeryToken()
             <input type="hidden" name="TicketId" value="@Model.Ticket.TicketId" />
+            <input type="hidden" name="view" value="@ViewBag.ReturnView" />
 
             <div class="ag-assign-grid">
                 <div class="ag-field">

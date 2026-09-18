@@ -107,7 +107,7 @@ namespace CallCenterPlus.Core
 				using SqlConnection connection = _connectionFactory.CreateConnection();
 				connection.Open();
 
-				SqlCommand cmd = new("SELECT * FROM Ticket_Detail WHERE TicketStatusId = 1", connection);
+				SqlCommand cmd = new("SELECT * FROM Ticket_Detail WHERE TicketStatusId = 1 ORDER BY TicketId", connection);
 
 				var list = new List<TicketViewModel>();
 				using SqlDataReader reader = cmd.ExecuteReader();
@@ -126,6 +126,83 @@ namespace CallCenterPlus.Core
 						ManagementDivisionName = reader.IsDBNull(reader.GetOrdinal("ManagementDivisionName")) ? null : reader.GetString(reader.GetOrdinal("ManagementDivisionName")),
 						TicketStartDate = reader.GetDateTime(reader.GetOrdinal("TicketStartDate")),
 						EmployeePhone = reader.GetInt32(reader.GetOrdinal("EmployeePhone")),
+						TicketStatusId = reader.GetInt32(reader.GetOrdinal("TicketStatusId")),
+					});
+				}
+
+				return list;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al obtener los tickets", ex);
+			}
+		}
+
+		public List<TicketViewModel> GetByWithAgent()
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM Ticket_Detail WHERE TicketStatusId > 1 AND TicketStatusId < 4", connection);
+
+				var list = new List<TicketViewModel>();
+				using SqlDataReader reader = cmd.ExecuteReader();
+
+				while (reader.Read())
+				{
+					list.Add(new TicketViewModel
+					{
+						TicketId = reader.GetInt32(reader.GetOrdinal("TicketId")),
+						ServiceAreaDetailId = reader.GetInt32(reader.GetOrdinal("ServiceAreaDetailId")),
+						TicketRemarks = reader.IsDBNull(reader.GetOrdinal("TicketRemarks")) ? null : reader.GetString(reader.GetOrdinal("TicketRemarks")),
+						EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeId")),
+						EmployeeIdNumber = reader.GetInt32(reader.GetOrdinal("EmployeeIdNumber")),
+						EmployeeName = reader.IsDBNull(reader.GetOrdinal("EmployeeName")) ? null : reader.GetString(reader.GetOrdinal("EmployeeName")),
+						ManagementName = reader.IsDBNull(reader.GetOrdinal("ManagementName")) ? null : reader.GetString(reader.GetOrdinal("ManagementName")),
+						ManagementDivisionName = reader.IsDBNull(reader.GetOrdinal("ManagementDivisionName")) ? null : reader.GetString(reader.GetOrdinal("ManagementDivisionName")),
+						TicketStartDate = reader.GetDateTime(reader.GetOrdinal("TicketStartDate")),
+						EmployeePhone = reader.GetInt32(reader.GetOrdinal("EmployeePhone")),
+						TicketStatusId = reader.GetInt32(reader.GetOrdinal("TicketStatusId")),
+					});
+				}
+
+				return list;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al obtener los tickets", ex);
+			}
+		}
+
+		public List<TicketViewModel> GetByEnded()
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM Ticket_Detail WHERE TicketStatusId >= 4", connection);
+
+				var list = new List<TicketViewModel>();
+				using SqlDataReader reader = cmd.ExecuteReader();
+
+				while (reader.Read())
+				{
+					list.Add(new TicketViewModel
+					{
+						TicketId = reader.GetInt32(reader.GetOrdinal("TicketId")),
+						ServiceAreaDetailId = reader.GetInt32(reader.GetOrdinal("ServiceAreaDetailId")),
+						TicketRemarks = reader.IsDBNull(reader.GetOrdinal("TicketRemarks")) ? null : reader.GetString(reader.GetOrdinal("TicketRemarks")),
+						EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeId")),
+						EmployeeIdNumber = reader.GetInt32(reader.GetOrdinal("EmployeeIdNumber")),
+						EmployeeName = reader.IsDBNull(reader.GetOrdinal("EmployeeName")) ? null : reader.GetString(reader.GetOrdinal("EmployeeName")),
+						ManagementName = reader.IsDBNull(reader.GetOrdinal("ManagementName")) ? null : reader.GetString(reader.GetOrdinal("ManagementName")),
+						ManagementDivisionName = reader.IsDBNull(reader.GetOrdinal("ManagementDivisionName")) ? null : reader.GetString(reader.GetOrdinal("ManagementDivisionName")),
+						TicketStartDate = reader.GetDateTime(reader.GetOrdinal("TicketStartDate")),
+						EmployeePhone = reader.GetInt32(reader.GetOrdinal("EmployeePhone")),
+						TicketStatusId = reader.GetInt32(reader.GetOrdinal("TicketStatusId")),
 					});
 				}
 
@@ -257,6 +334,49 @@ namespace CallCenterPlus.Core
 			}
 		}
 
+		public List<TicketDetail> GetAllTicketDetails()
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM TicketDetail_Detail ORDER BY TicketId, TicketMovementDate", connection);
+
+				var list = new List<TicketDetail>();
+				using SqlDataReader reader = cmd.ExecuteReader();
+				while (reader.Read())
+				{
+					list.Add(new TicketDetail
+					{
+						TicketId = reader.GetInt32(reader.GetOrdinal("TicketId")),
+						TicketDetailId = reader.GetInt32(reader.GetOrdinal("TicketDetailId")),
+						TicketMovementDate = reader.GetDateTime(reader.GetOrdinal("TicketMovementDate")),
+						TicketDetailRemarksByTechnician = reader.IsDBNull(reader.GetOrdinal("TicketDetailRemarksByTechnician")) ? null : reader.GetString(reader.GetOrdinal("TicketDetailRemarksByTechnician")),
+						TicketDetailMinutesByTechnician = reader.GetInt32(reader.GetOrdinal("TicketDetailMinutesByTechnician")),
+						TicketDetailEndDateByTechnician = reader.IsDBNull(reader.GetOrdinal("TicketDetailEndDateByTechnician")) ? null : reader.GetDateTime(reader.GetOrdinal("TicketDetailEndDateByTechnician")),
+						ServiceAreaDetailName = reader.IsDBNull(reader.GetOrdinal("ServiceAreaDetailName")) ? null : reader.GetString(reader.GetOrdinal("ServiceAreaDetailName")),
+						TicketRemarks = reader.IsDBNull(reader.GetOrdinal("TicketRemarks")) ? null : reader.GetString(reader.GetOrdinal("TicketRemarks")),
+						EmployeeName = reader.IsDBNull(reader.GetOrdinal("EmployeeName")) ? null : reader.GetString(reader.GetOrdinal("EmployeeName")),
+						ManagementName = reader.IsDBNull(reader.GetOrdinal("ManagementName")) ? null : reader.GetString(reader.GetOrdinal("ManagementName")),
+						ManagementDivisionName = reader.IsDBNull(reader.GetOrdinal("ManagementDivisionName")) ? null : reader.GetString(reader.GetOrdinal("ManagementDivisionName")),
+						EmployeePhone = reader.GetInt32(reader.GetOrdinal("EmployeePhone")),
+						TicketStartDate = reader.GetDateTime(reader.GetOrdinal("TicketStartDate")),
+						TicketStatusName = reader.IsDBNull(reader.GetOrdinal("TicketStatusName")) ? null : reader.GetString(reader.GetOrdinal("TicketStatusName")),
+						TicketStatusId = reader.GetInt32(reader.GetOrdinal("TicketStatusId")),
+						FullName = reader.IsDBNull(reader.GetOrdinal("FullName")) ? null : reader.GetString(reader.GetOrdinal("FullName")),
+						TicketDetailProcessDescrption = reader.IsDBNull(reader.GetOrdinal("TicketDetailProcessDescrption")) ? null : reader.GetString(reader.GetOrdinal("TicketDetailProcessDescrption")),
+					});
+				}
+
+				return list;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al obtener los movimientos de los tickets", ex);
+			}
+		}
+
 		public List<TicketStatus> GetStatusForAgent()
 		{
 			try
@@ -265,6 +385,34 @@ namespace CallCenterPlus.Core
 				connection.Open();
 
 				SqlCommand cmd = new("SELECT * FROM TicketStatus WHERE TicketStatusId > 1 AND TicketStatusId < 5", connection);
+
+				var list = new List<TicketStatus>();
+				using SqlDataReader reader = cmd.ExecuteReader();
+				while (reader.Read())
+				{
+					list.Add(new TicketStatus
+					{
+						TicketStatusId = reader.GetInt32(reader.GetOrdinal("TicketStatusId")),
+						TicketStatusName = reader.IsDBNull(reader.GetOrdinal("TicketStatusName")) ? null : reader.GetString(reader.GetOrdinal("TicketStatusName")),
+					});
+				}
+
+				return list;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al obtener los estatus", ex);
+			}
+		}
+
+		public List<TicketStatus> GetStatusForSupervisor()
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM TicketStatus WHERE TicketStatusId > 1", connection);
 
 				var list = new List<TicketStatus>();
 				using SqlDataReader reader = cmd.ExecuteReader();
