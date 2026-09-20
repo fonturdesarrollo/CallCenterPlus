@@ -49,9 +49,9 @@ public class AgentController : Controller
         base.OnActionExecuting(context);
     }
 
-    // Shared by the "En cola" / "En atención" tabs on Requests — same
-    // mapping, different source query.
-    private List<PendingRequestRow> GetRequestRows(Func<List<TicketViewModel>> fetch, string fetchName, out bool loadFailed)
+    // Shared by the "En cola" / "En atención" / "Finalizados" tabs on
+    // Requests — same mapping, different source query.
+    private List<PendingRequestRow> GetRequestRows(Func<List<TicketViewModel>> fetch, string fetchName, bool includeTechnician, out bool loadFailed)
     {
         loadFailed = false;
 
@@ -79,10 +79,33 @@ public class AgentController : Controller
             loadFailed = true;
         }
 
+        // "Técnico" (en atención / finalizados only) = the FullName on each
+        // ticket's latest movement — Ticket_Detail has no agent column of its
+        // own, only TicketDetail_Detail does (via GetAllTicketDetails).
+        Dictionary<int, string> technicianByTicketId = new();
+        if (includeTechnician)
+        {
+            try
+            {
+                technicianByTicketId = _tickets.GetAllTicketDetails()
+                    .Where(d => !string.IsNullOrWhiteSpace(d.FullName))
+                    .GroupBy(d => d.TicketId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.OrderByDescending(d => d.TicketMovementDate).First().FullName!);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener los movimientos para resolver el técnico (Tickets.GetAllTicketDetails)");
+                loadFailed = true;
+            }
+        }
+
         return tickets
             .Select(t =>
             {
                 categoryLookup.TryGetValue(t.ServiceAreaDetailId, out var detail);
+                technicianByTicketId.TryGetValue(t.TicketId, out var technician);
                 return new PendingRequestRow
                 {
                     TicketId = t.TicketId,
@@ -92,6 +115,7 @@ public class AgentController : Controller
                     TicketRemarks = string.IsNullOrWhiteSpace(t.TicketRemarks) ? "—" : t.TicketRemarks,
                     CreatedAt = t.TicketStartDate,
                     Status = ResolveStatusLabel(t.TicketStatusId),
+                    Technician = string.IsNullOrWhiteSpace(technician) ? "—" : technician,
                 };
             })
             .OrderBy(r => r.TicketId)
@@ -149,13 +173,13 @@ public class AgentController : Controller
         switch (normalizedView)
         {
             case "attention":
-                rows = GetRequestRows(_tickets.GetByWithAgent, "GetByWithAgent", out loadFailed);
+                rows = GetRequestRows(_tickets.GetByWithAgent, "GetByWithAgent", includeTechnician: true, out loadFailed);
                 break;
             case "ended":
-                rows = GetRequestRows(_tickets.GetByEnded, "GetByEnded", out loadFailed);
+                rows = GetRequestRows(_tickets.GetByEnded, "GetByEnded", includeTechnician: true, out loadFailed);
                 break;
             default:
-                rows = GetRequestRows(_tickets.GetByInQueue, "GetByInQueue", out loadFailed);
+                rows = GetRequestRows(_tickets.GetByInQueue, "GetByInQueue", includeTechnician: false, out loadFailed);
                 break;
         }
 

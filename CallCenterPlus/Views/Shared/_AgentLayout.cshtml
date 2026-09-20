@@ -66,13 +66,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] · CallCenterPlus Panel</title>
+    <link rel="icon" type="image/svg+xml" href="~/favicon.svg" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link rel="stylesheet" href="~/css/agent.css" asp-append-version="true" />
 </head>
 <body class="ag-body">
     @if (isAuthPage)
     {
-        @RenderBody()
+        <div class="ag-auth-shell">
+            <div class="ag-institutional-banner">
+                <img src="~/images/cintillo_fontur.jpg" alt="Ministerio del Poder Popular para el Transporte" />
+            </div>
+            @RenderBody()
+            <footer class="ag-auth-footer">&copy; @DateTime.Now.Year Gerencia de Tecnología de la Información</footer>
+        </div>
     }
     else
     {
@@ -124,6 +131,9 @@
                             </a>
                             <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "QueueAging" ? "active" : "")" asp-controller="Reports" asp-action="QueueAging">
                                 <i class="bi bi-hourglass-split"></i> <span>Solicitudes sin atender</span>
+                            </a>
+                            <a class="ag-nav-subitem @(currentController == "Reports" && currentAction == "Logs" ? "active" : "")" asp-controller="Reports" asp-action="Logs">
+                                <i class="bi bi-journal-text"></i> <span>Logs</span>
                             </a>
                         </div>
                     }
@@ -182,6 +192,8 @@
                     </a>
                 </nav>
             </aside>
+
+            <div class="ag-sidebar-backdrop" id="agSidebarBackdrop"></div>
 
             <div class="ag-main">
                 <header class="ag-topbar">
@@ -289,38 +301,85 @@
             (function () {
                 var toggle = document.getElementById('agToggle');
                 var shell = document.getElementById('agShell');
+                var backdrop = document.getElementById('agSidebarBackdrop');
+
+                function isMobileView() {
+                    return window.matchMedia('(max-width: 768px)').matches;
+                }
+
+                function closeMobileSidebar() {
+                    if (shell) shell.classList.remove('ag-sidebar-mobile-open');
+                }
+
                 if (toggle && shell) {
+                    try {
+                        // The desktop icon-rail "collapsed" preference doesn't apply
+                        // on mobile — there, the sidebar is a full overlay that's
+                        // either open or fully hidden, never a mini rail.
+                        if (!isMobileView() && localStorage.getItem('agSidebarCollapsed') === '1') {
+                            shell.classList.add('ag-sidebar-collapsed');
+                        }
+                    } catch (e) { }
+
                     toggle.addEventListener('click', function () {
-                        shell.classList.toggle('ag-sidebar-collapsed');
+                        if (isMobileView()) {
+                            shell.classList.toggle('ag-sidebar-mobile-open');
+                            return;
+                        }
+
+                        var collapsed = shell.classList.toggle('ag-sidebar-collapsed');
+                        try {
+                            localStorage.setItem('agSidebarCollapsed', collapsed ? '1' : '0');
+                        } catch (e) { }
+                    });
+
+                    if (backdrop) {
+                        backdrop.addEventListener('click', closeMobileSidebar);
+                    }
+
+                    // On mobile, tapping an actual navigation link (not a
+                    // Solicitudes/Reportes/Ajustes submenu toggle) should close
+                    // the drawer automatically instead of leaving it open behind
+                    // the page that just loaded.
+                    var navLinks = shell.querySelectorAll('.ag-sidebar a.ag-nav-item, .ag-sidebar a.ag-nav-subitem');
+                    navLinks.forEach(function (link) {
+                        link.addEventListener('click', function () {
+                            if (isMobileView()) {
+                                closeMobileSidebar();
+                            }
+                        });
                     });
                 }
 
-                var settingsToggle = document.getElementById('agSettingsToggle');
-                var settingsSubmenu = document.getElementById('agSettingsSubmenu');
-                if (settingsToggle && settingsSubmenu) {
-                    settingsToggle.addEventListener('click', function () {
-                        settingsToggle.classList.toggle('is-expanded');
-                        settingsSubmenu.classList.toggle('is-open');
+                // A submenu toggle (Solicitudes/Reportes/Ajustes) is unusable while
+                // the sidebar is collapsed (icon-only) — its submenu has nowhere to
+                // render. Expand the sidebar first in that case instead of just
+                // toggling the submenu open behind a hidden panel.
+                function setupSubmenuToggle(toggleId, submenuId) {
+                    var toggleEl = document.getElementById(toggleId);
+                    var submenuEl = document.getElementById(submenuId);
+                    if (!toggleEl || !submenuEl) return;
+
+                    toggleEl.addEventListener('click', function () {
+                        if (shell && shell.classList.contains('ag-sidebar-collapsed')) {
+                            shell.classList.remove('ag-sidebar-collapsed');
+                            try {
+                                localStorage.setItem('agSidebarCollapsed', '0');
+                            } catch (e) { }
+
+                            toggleEl.classList.add('is-expanded');
+                            submenuEl.classList.add('is-open');
+                            return;
+                        }
+
+                        toggleEl.classList.toggle('is-expanded');
+                        submenuEl.classList.toggle('is-open');
                     });
                 }
 
-                var requestsToggle = document.getElementById('agRequestsToggle');
-                var requestsSubmenu = document.getElementById('agRequestsSubmenu');
-                if (requestsToggle && requestsSubmenu) {
-                    requestsToggle.addEventListener('click', function () {
-                        requestsToggle.classList.toggle('is-expanded');
-                        requestsSubmenu.classList.toggle('is-open');
-                    });
-                }
-
-                var reportsToggle = document.getElementById('agReportsToggle');
-                var reportsSubmenu = document.getElementById('agReportsSubmenu');
-                if (reportsToggle && reportsSubmenu) {
-                    reportsToggle.addEventListener('click', function () {
-                        reportsToggle.classList.toggle('is-expanded');
-                        reportsSubmenu.classList.toggle('is-open');
-                    });
-                }
+                setupSubmenuToggle('agSettingsToggle', 'agSettingsSubmenu');
+                setupSubmenuToggle('agRequestsToggle', 'agRequestsSubmenu');
+                setupSubmenuToggle('agReportsToggle', 'agReportsSubmenu');
             })();
         </script>
     }

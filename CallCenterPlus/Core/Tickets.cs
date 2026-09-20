@@ -8,9 +8,11 @@ namespace CallCenterPlus.Core
 	public class Tickets : ITickets
 	{
 		private readonly ISqlConnectionFactory _connectionFactory;
-		public Tickets(ISqlConnectionFactory connectionFactory)
+		private readonly ISecurity _security;
+		public Tickets(ISqlConnectionFactory connectionFactory, ISecurity security)
 		{
 			_connectionFactory = connectionFactory;
+			_security = security;
 		}
 
 		public int AddOrEdit(TicketViewModel model)
@@ -45,6 +47,14 @@ namespace CallCenterPlus.Core
 					{
 						return model.TicketId;
 					}
+
+					_security.AddLogbook(model.TicketId, false,
+						$" Solicitante ->" +
+						$" nombre: {model.EmployeeName} -" +
+						$" cedula n°: {model.EmployeeIdNumber} -" +
+						$" gerencia: {model.ManagementName} -" +
+						$" division: {model.ManagementDivisionName} -" +
+						$" requerimiento: {model.TicketRemarks} -");
 
 					return Convert.ToInt32(execResult);
 				}
@@ -88,6 +98,16 @@ namespace CallCenterPlus.Core
 					{
 						return model.TicketId;
 					}
+
+					// TicketDetailProcessDescrption is already the human-readable
+					// summary of this movement (agent/status/observaciones/minutos,
+					// built by the caller — AgentController.BuildProcessDescription
+					// or RequestController's reopen flow), so reuse it as-is instead
+					// of re-describing the change from scratch.
+					_security.AddLogbook(model.TicketId, false,
+						string.IsNullOrWhiteSpace(model.TicketDetailProcessDescrption)
+							? $"Movimiento en el ticket #{model.TicketId} (estatus {model.TicketStatusId})."
+							: $"Ticket #{model.TicketId} -> {model.TicketDetailProcessDescrption}");
 
 					return Convert.ToInt32(execResult);
 				}

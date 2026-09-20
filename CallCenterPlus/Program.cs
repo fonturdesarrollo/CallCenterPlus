@@ -1,6 +1,7 @@
 using CallCenterPlus.Core;
 using CallCenterPlus.Core.Data;
 using CallCenterPlus.Hubs;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,8 +27,13 @@ builder.Services.AddScoped<IServiceAreas, ServiceAreas>();
 builder.Services.AddScoped<ITickets, Tickets>();
 builder.Services.AddScoped<IGeography, Geography>();
 builder.Services.AddScoped<ISecurity, Security>();
+builder.Services.AddScoped<ClientInfoService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
+
+builder.Services.AddDataProtection()
+	.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys")));
+
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {

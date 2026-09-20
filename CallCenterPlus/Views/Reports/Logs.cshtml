@@ -1,0 +1,165 @@
+@model List<CallCenterPlus.Models.SecurityLogbookModel>
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+@if (ViewBag.LoadFailed == true)
+{
+    <div class="ag-alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>No pudimos cargar el log de movimientos. Intenta de nuevo en unos minutos.</span>
+    </div>
+}
+
+<div class="ag-card">
+    <div class="ag-card-header">
+        <div>
+            <h2>Log de movimientos</h2>
+            <p>Historial de acciones realizadas por los usuarios del sistema</p>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="ag-empty-state">
+            <i class="bi bi-journal-text"></i>
+            <p>Todavía no hay movimientos registrados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="ag-search-field">
+            <i class="bi bi-search"></i>
+            <input type="text" id="logsSearchInput" class="ag-input" placeholder="Buscar por usuario, descripción, IP o dispositivo..." />
+        </div>
+
+        <div class="ag-table-wrap">
+            <table class="ag-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Descripción</th>
+                        <th>Dispositivo</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTableBody">
+                    @foreach (var entry in Model)
+                    {
+                        var device = string.Join(" · ", new[] { entry.DeviceType, entry.DeviceBrowser, entry.DeviceOperatingSystem }
+                            .Where(v => !string.IsNullOrWhiteSpace(v)));
+
+                        <tr>
+                            <td>@entry.SecurityLogbookDate.ToString("dd/MM/yyyy hh:mm tt")</td>
+                            <td>
+                                <div class="ag-table-user-name">@(entry.UserFullName ?? "—")</div>
+                                <div class="ag-table-user-dept">@(entry.UserLogin ?? "—")</div>
+                            </td>
+                            <td>@(entry.ActionDescription ?? "—")</td>
+                            <td class="ag-table-user-dept">@(string.IsNullOrWhiteSpace(device) ? "—" : device)</td>
+                            <td>@(entry.DeviceIP ?? "—")</td>
+                        </tr>
+                    }
+                    <tr id="logsNoMatchRow" style="display:none;">
+                        <td colspan="5" class="ag-empty-state" style="padding:24px;">
+                            <i class="bi bi-search"></i>
+                            <p>No se encontraron movimientos que coincidan con tu búsqueda.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ag-pagination" id="logsPagination" style="display:none;">
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="logsPrevPage">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <span class="ag-pagination-info" id="logsPageInfo">Página 1 de 1</span>
+            <button type="button" class="ag-btn ag-btn-outline ag-btn-sm" id="logsNextPage">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var tableBody = document.getElementById('logsTableBody');
+            if (!tableBody) return;
+
+            var searchInput = document.getElementById('logsSearchInput');
+            var noMatchRow = document.getElementById('logsNoMatchRow');
+            var pagination = document.getElementById('logsPagination');
+            var pageInfo = document.getElementById('logsPageInfo');
+            var prevButton = document.getElementById('logsPrevPage');
+            var nextButton = document.getElementById('logsNextPage');
+
+            var pageSize = 10;
+            var currentPage = 1;
+
+            var allRows = Array.prototype.slice.call(tableBody.querySelectorAll('tr'))
+                .filter(function (row) { return row !== noMatchRow; });
+
+            function getMatchingRows() {
+                var term = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                if (!term) return allRows;
+
+                return allRows.filter(function (row) {
+                    return row.textContent.toLowerCase().indexOf(term) !== -1;
+                });
+            }
+
+            function render() {
+                var matching = getMatchingRows();
+                var totalPages = Math.max(1, Math.ceil(matching.length / pageSize));
+                currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+                var start = (currentPage - 1) * pageSize;
+                var pageRows = matching.slice(start, start + pageSize);
+
+                allRows.forEach(function (row) { row.style.display = 'none'; });
+                pageRows.forEach(function (row) { row.style.display = ''; });
+
+                if (noMatchRow) {
+                    noMatchRow.style.display = matching.length === 0 ? '' : 'none';
+                }
+
+                if (pagination) {
+                    pagination.style.display = matching.length > pageSize ? '' : 'none';
+                }
+                if (pageInfo) {
+                    pageInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages;
+                }
+                if (prevButton) {
+                    prevButton.disabled = currentPage <= 1;
+                }
+                if (nextButton) {
+                    nextButton.disabled = currentPage >= totalPages;
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            }
+            if (prevButton) {
+                prevButton.addEventListener('click', function () {
+                    currentPage--;
+                    render();
+                });
+            }
+            if (nextButton) {
+                nextButton.addEventListener('click', function () {
+                    currentPage++;
+                    render();
+                });
+            }
+
+            render();
+        })();
+    </script>
+}

@@ -9,6 +9,7 @@ public class PendingRequestRow
     public string TicketRemarks { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public string Status { get; set; } = "En cola";
+    public string Technician { get; set; } = "—";
 
     public string Initials =>
         string.IsNullOrWhiteSpace(EmployeeName)

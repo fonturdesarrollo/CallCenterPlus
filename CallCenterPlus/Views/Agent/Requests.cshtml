@@ -70,6 +70,8 @@
             <input type="text" id="requestsSearchInput" class="ag-input" placeholder="Buscar por empleado, tipo, comentarios, fecha o estado..." />
         </div>
 
+        var showTechnician = currentView != "queue";
+        var columnCount = showTechnician ? 7 : 6;
         <div class="ag-table-wrap">
             <table class="ag-table">
                 <thead>
@@ -79,6 +81,10 @@
                         <th>Comentarios</th>
                         <th>Fecha</th>
                         <th>Estado</th>
+                        @if (showTechnician)
+                        {
+                            <th>Técnico</th>
+                        }
                         <th></th>
                     </tr>
                 </thead>
@@ -99,6 +105,10 @@
                             <td class="ag-table-remarks" title="@request.TicketRemarks">@request.TicketRemarks</td>
                             <td>@request.CreatedAt.ToString("dd/MM/yyyy hh:mm tt")</td>
                             <td><span class="ag-badge @BadgeClass(request.Status)">@request.Status</span></td>
+                            @if (showTechnician)
+                            {
+                                <td>@request.Technician</td>
+                            }
                             <td class="text-end">
                                 <a class="ag-btn ag-btn-primary ag-btn-sm" asp-controller="Agent" asp-action="TicketDetail" asp-route-id="@request.TicketId" asp-route-view="@currentView">
                                     @(request.Status == "En cola" ? "Tomar ticket" : "Ver detalle")
@@ -107,7 +117,7 @@
                         </tr>
                     }
                     <tr id="requestsNoMatchRow" style="display:none;">
-                        <td colspan="6" class="ag-empty-state" style="padding:24px;">
+                        <td colspan="@columnCount" class="ag-empty-state" style="padding:24px;">
                             <i class="bi bi-search"></i>
                             <p>No se encontraron solicitudes que coincidan con tu búsqueda.</p>
                         </td>
@@ -226,7 +236,7 @@
                 }
 
                 var connection = new signalR.HubConnectionBuilder()
-                    .withUrl('/hubs/tickets')
+                    .withUrl('@Url.Content("~/hubs/tickets")')
                     .withAutomaticReconnect()
                     .build();
 

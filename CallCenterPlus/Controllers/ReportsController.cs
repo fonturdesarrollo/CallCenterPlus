@@ -344,6 +344,29 @@ public class ReportsController : Controller
         return View(model);
     }
 
+    // Full audit trail: every AddLogbook call from anywhere in the app
+    // (Security.AddOrEditUser, Tickets movements, etc.).
+    [HttpGet]
+    public IActionResult Logs()
+    {
+        var loadFailed = false;
+
+        List<SecurityLogbookModel> entries;
+        try
+        {
+            entries = _security.GetLogbook();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener el logbook (Security.GetLogbook)");
+            entries = new List<SecurityLogbookModel>();
+            loadFailed = true;
+        }
+
+        ViewBag.LoadFailed = loadFailed;
+        return View(entries);
+    }
+
     private static string ResolveSeverity(double waitingHours) => waitingHours switch
     {
         < 24 => "success",

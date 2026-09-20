@@ -47,7 +47,7 @@ button { font-family: inherit; }
     background: var(--ag-sidebar-bg);
     display: flex;
     flex-direction: column;
-    transition: width .2s ease;
+    transition: width .28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ag-shell.ag-sidebar-collapsed .ag-sidebar {
@@ -61,6 +61,50 @@ button { font-family: inherit; }
 .ag-shell.ag-sidebar-collapsed .ag-nav-toggle-meta,
 .ag-shell.ag-sidebar-collapsed .ag-nav-submenu {
     display: none;
+}
+
+.ag-sidebar-backdrop {
+    display: none;
+}
+
+/* ---------- Mobile: sidebar becomes a sliding overlay, not a rail ---------- */
+@media (max-width: 768px) {
+    .ag-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform .32s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 8px 0 32px rgba(0,0,0,.28);
+    }
+
+    .ag-shell.ag-sidebar-mobile-open .ag-sidebar {
+        transform: translateX(0);
+    }
+
+    /* Safety net: never show the icon-only rail on mobile, even if a
+       desktop-collapsed preference happens to be present. */
+    .ag-shell.ag-sidebar-collapsed .ag-sidebar {
+        width: var(--ag-sidebar-width);
+    }
+
+    .ag-sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        z-index: 999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .32s ease;
+    }
+
+    .ag-shell.ag-sidebar-mobile-open .ag-sidebar-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 .ag-brand {
@@ -318,24 +362,66 @@ button { font-family: inherit; }
     border-top: 1px solid var(--ag-border);
 }
 
+/* ---------- Institutional letterhead banner (login page only) ---------- */
+.ag-institutional-banner {
+    background: var(--ag-card-bg);
+    border-bottom: 1px solid var(--ag-border);
+    padding: 10px 20px;
+    text-align: center;
+}
+
+.ag-institutional-banner img {
+    max-width: 100%;
+    height: auto;
+    max-height: 90px;
+}
+
 /* ---------- Auth page ---------- */
-.ag-auth-page {
+.ag-auth-shell {
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
+}
+
+.ag-auth-page {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 24px;
+    justify-content: flex-start;
+    padding: 32px 24px 60px;
     gap: 22px;
 }
 
-.ag-auth-logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 1.2rem;
+.ag-portal-link {
+    text-align: center;
+    font-size: .82rem;
+    color: var(--ag-text-muted);
+    margin: 0;
+}
+
+.ag-portal-link i {
+    margin-right: 4px;
+}
+
+.ag-portal-link a {
+    color: var(--ag-primary);
     font-weight: 600;
-    color: var(--ag-text);
+    text-decoration: none;
+}
+
+.ag-portal-link a:hover {
+    text-decoration: underline;
+}
+
+.ag-auth-footer {
+    width: 100%;
+    background: var(--ag-card-bg);
+    border-top: 1px solid var(--ag-border);
+    padding: 14px 24px;
+    text-align: right;
+    font-size: .78rem;
+    color: var(--ag-text-muted);
 }
 
 .ag-auth-card {

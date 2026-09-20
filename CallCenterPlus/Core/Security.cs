@@ -1,4 +1,5 @@
 ﻿using CallCenterPlus.Core.Data;
+using CallCenterPlus.Extensions;
 using CallCenterPlus.Models;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Data.SqlClient;
@@ -16,12 +17,14 @@ namespace CallCenterPlus.Core
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private const string allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 		private static RSA rsa = RSA.Create();
+		private readonly ClientInfoService _clientInfoService;
 
-		public Security(ISqlConnectionFactory connectionFactory, IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
+		public Security(ISqlConnectionFactory connectionFactory, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ClientInfoService clientInfoService)
 		{
 			_connectionFactory = connectionFactory;
 			_httpContextAccessor = httpContextAccessor;
 			_configuration = configuration;
+			_clientInfoService = clientInfoService;
 			Key = _configuration["Cryptography:Key"]
 				?? throw new InvalidOperationException("La clave 'Cryptography:Key' no fue encontrada en appsettings.");
 		}
@@ -52,7 +55,7 @@ namespace CallCenterPlus.Core
 
 					result = Convert.ToInt32(cmd.ExecuteScalar());
 
-					//AddLogbook(model.SecurityUserId, false, $"usuario {model.FullName.ToUpper()} login {model.Login} grupo Id {model.SecurityGroupId} estatus {model.SecurityStatusId}");
+					AddLogbook(model.SecurityUserId, false, $"usuario {model.FullName.ToUpper()} login {model.UserName} grupo Id {model.SecurityGroupId} estatus {model.SecurityStatusId}");
 				}				
 
 				return result;
@@ -169,6 +172,119 @@ namespace CallCenterPlus.Core
 			catch (Exception ex)
 			{
 				throw new Exception("Error al eliminar el módulo del grupo", ex);
+			}
+		}
+
+
+		public int AddLogbook(int processId, bool isDeleteAction, string actionDescription)
+		{
+			int result = 0;
+			string addEditDelete = processId == 0 ? "Agrego" : "Modifico";
+
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("Security_LogbookAdd", connection)
+				{
+					CommandType = CommandType.StoredProcedure
+				};
+
+				var client = _clientInfoService.GetClientDetails();
+				var httpContext = _httpContextAccessor.HttpContext;
+
+				// The real session identity lives as AgentUser ("CurrentAgent") or
+				// Employee ("CurrentEmployee") objects, not as loose session strings
+				// — AddLogbook is called from both agent-driven actions
+				// (Security.AddOrEditUser) and employee-driven ones (ticket
+				// movements from the self-service wizard), so check both.
+				var agent = httpContext?.Session.GetObject<AgentUser>("CurrentAgent");
+				var employee = httpContext?.Session.GetObject<Employee>("CurrentEmployee");
+
+				var userFullName = agent?.FullName ?? employee?.EmployeeName;
+				var userLogin = agent?.UserName ?? employee?.EmployeeIdNumber.ToString();
+				var userState = !string.IsNullOrEmpty(agent?.StateName) ? agent.StateName : employee?.StateName;
+				var userId = agent?.SecurityUserId ?? 0;
+				var deviceIP = ResolveClientIp(httpContext);
+
+				if (isDeleteAction)
+				{
+					addEditDelete = "Elimino";
+				}
+
+				cmd.Parameters.AddWithValue("@SecurityUserId", userId);
+				cmd.Parameters.AddWithValue("@DeviceIP", !string.IsNullOrEmpty(deviceIP) ? deviceIP : "Desconocida");
+				cmd.Parameters.AddWithValue("@DeviceType", client.DeviceType);
+				cmd.Parameters.AddWithValue("@DeviceBrowser", client.Browser);
+				cmd.Parameters.AddWithValue("@DeviceOperatingSystem", client.OperatingSystem);
+				cmd.Parameters.AddWithValue("@UserFullName", !string.IsNullOrEmpty(userFullName) ? userFullName : "Sistema");
+				cmd.Parameters.AddWithValue("@UserLogin", !string.IsNullOrEmpty(userLogin) ? userLogin : "Sistema");
+				cmd.Parameters.AddWithValue("@UserState", !string.IsNullOrEmpty(userState) ? userState : "N/D");
+				cmd.Parameters.AddWithValue("@ActionDescription", $"{addEditDelete} {actionDescription}");
+
+				result = Convert.ToInt32(cmd.ExecuteScalar());				
+
+				return result;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception($"Error al añadir el logbook {ex.Message}", ex);
+			}
+		}
+
+		// Prefers X-Forwarded-For (set by IIS/a reverse proxy in front of the
+		// app) over the raw connection address, which would otherwise be the
+		// proxy's own IP rather than the real client's.
+		private static string? ResolveClientIp(HttpContext? httpContext)
+		{
+			if (httpContext is null)
+			{
+				return null;
+			}
+
+			var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+			if (!string.IsNullOrWhiteSpace(forwardedFor))
+			{
+				return forwardedFor.Split(',')[0].Trim();
+			}
+
+			return httpContext.Connection.RemoteIpAddress?.ToString();
+		}
+
+		public List<SecurityLogbookModel> GetLogbook()
+		{
+			try
+			{
+				using SqlConnection connection = _connectionFactory.CreateConnection();
+				connection.Open();
+
+				SqlCommand cmd = new("SELECT * FROM SecurityLogbook ORDER BY SecurityLogbookDate DESC", connection);
+
+				var list = new List<SecurityLogbookModel>();
+				using SqlDataReader reader = cmd.ExecuteReader();
+				while (reader.Read())
+				{
+					list.Add(new SecurityLogbookModel
+					{
+						SecurityLogbookId = reader.GetInt32(reader.GetOrdinal("SecurityLogbookId")),
+						SecurityLogbookDate = reader.GetDateTime(reader.GetOrdinal("SecurityLogbookDate")),
+						DeviceIP = reader.IsDBNull(reader.GetOrdinal("DeviceIP")) ? null : reader.GetString(reader.GetOrdinal("DeviceIP")),
+						UserFullName = reader.IsDBNull(reader.GetOrdinal("UserFullName")) ? null : reader.GetString(reader.GetOrdinal("UserFullName")),
+						UserLogin = reader.IsDBNull(reader.GetOrdinal("UserLogin")) ? null : reader.GetString(reader.GetOrdinal("UserLogin")),
+						UserState = reader.IsDBNull(reader.GetOrdinal("UserState")) ? null : reader.GetString(reader.GetOrdinal("UserState")),
+						ActionDescription = reader.IsDBNull(reader.GetOrdinal("ActionDescription")) ? null : reader.GetString(reader.GetOrdinal("ActionDescription")),
+						DeviceBrowser = reader.IsDBNull(reader.GetOrdinal("DeviceBrowser")) ? null : reader.GetString(reader.GetOrdinal("DeviceBrowser")),
+						DeviceOperatingSystem = reader.IsDBNull(reader.GetOrdinal("DeviceOperatingSystem")) ? null : reader.GetString(reader.GetOrdinal("DeviceOperatingSystem")),
+						DeviceType = reader.IsDBNull(reader.GetOrdinal("DeviceType")) ? null : reader.GetString(reader.GetOrdinal("DeviceType")),
+					});
+				}
+
+				return list;
+			}
+			catch (Exception ex)
+			{
+				throw new Exception("Error al obtener el logbook", ex);
 			}
 		}
 

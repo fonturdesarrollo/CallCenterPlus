@@ -67,6 +67,7 @@ public class AgentAccountController : Controller
             UserName = validUser.UserName ?? model.Username.Trim(),
             FullName = validUser.FullName ?? model.Username.Trim(),
             Role = validUser.SecurityGroupName ?? "Agente de Soporte",
+            StateName = validUser.StateName ?? string.Empty,
         });
 
         return RedirectToAction("Requests", "Agent");

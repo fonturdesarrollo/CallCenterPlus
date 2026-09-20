@@ -8,6 +8,8 @@ namespace CallCenterPlus.Core
 		public int AddOrEditGroup(SecurityGroupModel model);
 		public int AddOrEditModule(SecurityModuleModel model);
 		public int AddOrEditGroupModules(SecurityGroupModuleModel model);
+		public int AddLogbook(int processId, bool isDeleteAction, string actionDescription);
+		public List<SecurityLogbookModel> GetLogbook();
 		public int DeleteGroupModules(int securityGroupModuleId);
 		public List<SecurityModuleModel> GetModulesByGroupId(int groupId);
 		public List<SecurityModuleModel> GetAllModules();

@@ -32,6 +32,20 @@ body.cc-body {
 
 a { color: inherit; }
 
+/* Institutional letterhead banner (login page only) */
+.cc-institutional-banner {
+    background: var(--cc-card-bg);
+    border-bottom: 1px solid var(--cc-border);
+    padding: 10px 20px;
+    text-align: center;
+}
+
+.cc-institutional-banner img {
+    max-width: 100%;
+    height: auto;
+    max-height: 90px;
+}
+
 /* Top bar */
 .cc-topbar {
     display: flex;
@@ -697,11 +711,51 @@ a { color: inherit; }
 
 /* Login */
 .cc-login-page {
-    min-height: 100vh;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    padding: 24px;
+    padding: 32px 24px 60px;
+}
+
+.cc-staff-link {
+    text-align: center;
+    font-size: .82rem;
+    color: var(--cc-text-muted);
+    margin: 20px 0 0;
+}
+
+.cc-staff-link i {
+    margin-right: 4px;
+}
+
+.cc-staff-link a {
+    color: var(--cc-primary-dark);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.cc-staff-link a:hover {
+    text-decoration: underline;
+}
+
+.cc-auth-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.cc-auth-main {
+    flex: 1;
+}
+
+.cc-auth-footer {
+    width: 100%;
+    background: var(--cc-card-bg);
+    border-top: 1px solid var(--cc-border);
+    padding: 14px 24px;
+    text-align: right;
+    font-size: .78rem;
+    color: var(--cc-text-muted);
 }
 
 .cc-login-logo {

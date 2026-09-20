@@ -11,6 +11,7 @@ public class AgentUser
     public string UserName { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public string StateName { get; set; } = string.Empty;
 
     public string Initials =>
         string.IsNullOrWhiteSpace(FullName)
