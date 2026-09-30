@@ -694,6 +694,14 @@ input.ag-input-no-spin {
 .ag-segmented a:hover { color: var(--ag-text); }
 .ag-segmented a.is-active:hover { color: #fff; }
 
+.ag-segmented a.ag-segmented-danger { background: rgba(229,83,83,.14); color: #c62d2d; }
+.ag-segmented a.ag-segmented-warning { background: rgba(249,177,21,.16); color: #9c6b00; }
+.ag-segmented a.ag-segmented-success { background: rgba(46,184,92,.14); color: #1c8a45; }
+
+.ag-segmented a.is-active.ag-segmented-danger { background: var(--ag-danger); color: #fff; }
+.ag-segmented a.is-active.ag-segmented-warning { background: var(--ag-warning); color: #fff; }
+.ag-segmented a.is-active.ag-segmented-success { background: var(--ag-success); color: #fff; }
+
 .ag-chart-wrap { position: relative; height: 220px; margin-bottom: 10px; }
 
 .ag-metrics-row {
@@ -810,6 +818,7 @@ input.ag-input-no-spin {
 .ag-badge-warning { background: rgba(249,177,21,.16); color: #9c6b00; }
 .ag-badge-success { background: rgba(46,184,92,.14); color: #1c8a45; }
 .ag-badge-danger { background: rgba(229,83,83,.14); color: #c62d2d; }
+.ag-badge-danger-solid { background: var(--ag-danger); color: #fff; }
 
 /* ---------- Alerts / empty state ---------- */
 .ag-alert-warning {

@@ -5,7 +5,7 @@
 
     string BadgeClass(string status) => status switch
     {
-        "En cola" => "ag-badge-info",
+        "En cola" => "ag-badge-danger-solid",
         "Técnico asignado" => "ag-badge-primary",
         "Técnico trabajando" => "ag-badge-warning",
         "Finalizado técnico" => "ag-badge-success",
@@ -28,13 +28,13 @@
             <p>@headerSubtitle</p>
         </div>
         <div class="ag-segmented">
-            <a class="@(currentView == "queue" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="queue">
+            <a class="ag-segmented-danger @(currentView == "queue" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="queue">
                 <i class="bi bi-inbox"></i> En cola
             </a>
-            <a class="@(currentView == "attention" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="attention">
+            <a class="ag-segmented-warning @(currentView == "attention" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="attention">
                 <i class="bi bi-headset"></i> En atención
             </a>
-            <a class="@(currentView == "ended" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="ended">
+            <a class="ag-segmented-success @(currentView == "ended" ? "is-active" : "")" asp-controller="Agent" asp-action="Requests" asp-route-view="ended">
                 <i class="bi bi-check-circle"></i> Finalizados
             </a>
         </div>
